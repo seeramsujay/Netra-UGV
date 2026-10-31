@@ -80,7 +80,9 @@ class MSCKFEstimator:
     # Maximum sliding window size
     MAX_CLONES = 20
 
-    GRAVITY = np.array([0.0, 0.0, 9.81], dtype=np.float64)
+    # World frame is ENU (z up, REP-103), like the IMU stream: a resting accelerometer
+    # reads +9.81 on z, so gravity acts along -z.
+    GRAVITY = np.array([0.0, 0.0, -9.81], dtype=np.float64)
 
     def __init__(
         self,

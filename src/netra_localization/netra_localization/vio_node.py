@@ -110,6 +110,13 @@ class VIONode(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
+        # The IMU runs at 500 Hz and the callbacks share one thread with the (slow) image
+        # callback; a depth-1 queue silently drops every IMU sample that arrives meanwhile.
+        imu_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=500,
+        )
         reliable_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
@@ -118,7 +125,7 @@ class VIONode(Node):
 
         # --- Subscribers ---
         self.imu_sub = self.create_subscription(
-            Imu, '/imu/data', self._on_imu, sensor_qos,
+            Imu, '/imu/data', self._on_imu, imu_qos,
         )
         self.image_sub = self.create_subscription(
             Image, '/camera/image_raw', self._on_image, sensor_qos,

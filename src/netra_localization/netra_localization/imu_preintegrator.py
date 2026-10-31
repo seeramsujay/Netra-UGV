@@ -55,8 +55,8 @@ class IMUPreintegrator:
     associated covariance and bias Jacobians.
     """
 
-    # Gravity vector (NED convention, pointing down)
-    GRAVITY = np.array([0.0, 0.0, 9.81], dtype=np.float64)
+    # Gravity vector in the ENU world frame (z up, REP-103), pointing down
+    GRAVITY = np.array([0.0, 0.0, -9.81], dtype=np.float64)
 
     def __init__(
         self,
