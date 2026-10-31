@@ -1,20 +1,46 @@
-# ros_gz_bridge topic mapping
+# ros_gz_bridge topic mapping (Gazebo Harmonic <-> ROS 2 Jazzy/Humble).
+# Gazebo-side names are what the world/URDF actually publish; verify with `gz topic -l`.
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
 - ros_topic_name: "/camera/image_raw"
   gz_topic_name: "/camera/image"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/camera/depth"
+- ros_topic_name: "/camera/depth_image"
   gz_topic_name: "/camera/depth_image"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/camera/camera_info"
+  gz_topic_name: "/camera/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
 
 - ros_topic_name: "/imu/data"
   gz_topic_name: "/imu/data"
   ros_type_name: "sensor_msgs/msg/Imu"
   gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
+# True pose of the chassis (the stack's own /odom comes from the VIO node).
+- ros_topic_name: "/odom_ground_truth"
+  gz_topic_name: "/odom_ground_truth"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/joint_states"
+  gz_topic_name: "/joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS
 
 - ros_topic_name: "/cmd_vel"

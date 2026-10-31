@@ -101,7 +101,7 @@ python3 scripts/test_bisenetv2_onnx.py
 Run the standalone simulation engine modeling 4 negative obstacle drop-offs, 28 boulders, and autonomous Point A → Point B traversal:
 ```bash
 # Run headless simulation & trajectory plot renderer
-python3 sim/webots/render.py
+python3 sim/webots/render.py   # optional: --out DIR
 ```
 * **Trajectory Output:** [`sim/webots/netra_ugv_sim_trajectory.png`](./sim/webots/netra_ugv_sim_trajectory.png)
 * **Interactive 3D Webots GUI:** Open Webots R2025a and load `sim/webots/worlds/netra_tactical.wbt` to visualize live collision avoidance and path tracking.
@@ -110,11 +110,11 @@ python3 sim/webots/render.py
 ```bash
 # In your ROS 2 Humble workspace:
 source /opt/ros/humble/setup.bash
-colcon build --packages-select sim --symlink-install
+colcon build --base-paths src sim
 source install/setup.bash
 
 # Launch full outdoor obstacle world and UGV skid-steer chassis
-ros2 launch sim full_demo.launch.py
+ros2 launch netra_sim gazebo.launch.py
 ```
 
 ---

@@ -5,11 +5,15 @@ planning   : goal-seeking with lidar avoidance, roll/shock guards
 security   : HMAC-authenticated waypoint commands (SecOC-style), tamper -> key zeroization
 Keys: T = physical tamper (zeroize)   S = inject spoofed command   R = re-provision keys
 """
-import math, hmac, hashlib, os
+import math, hmac, hashlib, os, sys
 from controller import Robot, Keyboard
 
-dt_ms = 16
+# shared mission definition (sim/netra_sim/scenario.py)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
+from netra_sim import scenario
+
 robot = Robot()
+dt_ms = int(robot.getBasicTimeStep())   # follow the world's WorldInfo.basicTimeStep
 kb = robot.getKeyboard(); kb.enable(dt_ms)
 def dev(n, en=True):
     d = robot.getDevice(n)
@@ -25,7 +29,7 @@ def drive(l, r):
 # ---- security: signed mission waypoints ----
 KEY = bytearray(b"netra-demo-key-do-not-use-in-prod")
 def sign(msg, key=None): return hmac.new(bytes(key or KEY), msg.encode(), hashlib.sha256).hexdigest()
-WAYPOINTS = [(-12, -10), (-3, -9), (6, -5), (12, -4), (21, 13)]
+WAYPOINTS = scenario.WAYPOINTS
 signed = [(wp, sign("%d,%d" % (round(wp[0]), round(wp[1])))) for wp in WAYPOINTS]
 def verify(wp, tag): return KEY and hmac.compare_digest(sign("%d,%d" % (round(wp[0]), round(wp[1]))), tag)
 zeroized, ok_frames, bad_frames = False, 0, 0

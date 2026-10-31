@@ -1,37 +1,33 @@
-import math, random, os, shutil, numpy as np, matplotlib
+"""Headless kinematic replay of the NETRA tactical mission (no simulator required).
+
+This is a 2D behavioural model of the Webots controller, not a physics run: it
+shares the terrain, boulders, ditches and waypoints with every simulator
+backend through netra_sim.scenario, and renders the trajectory + HUD.
+
+    python3 sim/webots/render.py [--out DIR]
+"""
+import argparse, math, os, shutil, sys
+import numpy as np, matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon, Circle
 
-random.seed(7)
-NX, NY, SP = 126, 91, 0.4
-OX, OY = -NX * SP / 2 + SP / 2, -NY * SP / 2 + SP / 2
-hills = [(-5, 2, 3.5, 1.1), (8, -6, 4, 1.4), (14, 10, 3, 1.0), (-14, -8, 4, 0.9), (0, 12, 3.5, 1.2), (20, -2, 3, 1.0)]
-ditches = [(-8, -4, 1.3, 8), (4, 3, 10, 1.3), (15, -12, 1.3, 7), (-2, -13, 8, 1.3)]
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+from netra_sim import scenario as sc
 
-def h(x, y):
-    z = sum(a * math.exp(-((x - cx)**2 + (y - cy)**2) / (2 * (r / 1.6)**2)) for cx, cy, r, a in hills) + 0.03 * math.sin(x * 1.7) * math.cos(y * 1.3)
-    z *= min(1, max(0, (math.hypot(x + 22, y + 14) - 4) / 4))
-    for cx, cy, w, hh in ditches:
-        if abs(x - cx) < w / 2 and abs(y - cy) < hh / 2:
-            z -= 0.55
-    return z
+ap = argparse.ArgumentParser()
+ap.add_argument("--out", default=HERE, help="output directory (default: next to this script)")
+args = ap.parse_args()
+os.makedirs(args.out, exist_ok=True)
 
-xs = OX + np.arange(NX) * SP
-ys = OY + np.arange(NY) * SP
-Z = np.array([[h(x, y) for x in xs] for y in ys])
-rocks = []
-while len(rocks) < 28:
-    x, y = random.uniform(-22, 22), random.uniform(-16, 16)
-    if math.hypot(x + 22, y + 14) < 5 or math.hypot(x - 21, y - 13) < 3:
-        continue
-    if any(abs(x - cx) < w / 2 + 1 and abs(y - cy) < hh / 2 + 1 for cx, cy, w, hh in ditches):
-        continue
-    rocks.append((x, y, random.uniform(0.25, 0.5), random.uniform(0, 6.28)))
+NX, NY, SP, OX, OY = sc.NX, sc.NY, sc.SP, sc.X0, sc.Y0
+ditches = sc.DITCHES
+Z = np.array(sc.height_grid()).reshape(NY, NX)
+rocks = [(r.x, r.y, r.size, r.yaw) for r in sc.build_rocks()]
 
 def hg(x, y):
-    z = sum(a * math.exp(-((x - cx)**2 + (y - cy)**2) / (2 * (r / 1.6)**2)) for cx, cy, r, a in hills)
-    return z * min(1, max(0, (math.hypot(x + 22, y + 14) - 4) / 4))
+    return sc.terrain_height(x, y, ditches=False)
 
 def hz(x, y):
     i = min(NX - 1, max(0, round((x - OX) / SP)))
@@ -39,7 +35,7 @@ def hz(x, y):
     return Z[j, i]
 
 def in_ditch(x, y):
-    return any(abs(x - cx) < w / 2 and abs(y - cy) < hh / 2 for cx, cy, w, hh in ditches)
+    return sc.in_ditch(x, y)
 
 def in_rock(x, y, pad=0):
     return any(math.hypot(x - rx, y - ry) < s * 0.85 + pad for rx, ry, s, _ in rocks)
@@ -51,8 +47,8 @@ def ray(x, y, a, maxr=12):
             return r
     return 99
 
-WP = [(-12, -10), (-3, -9.5), (6, -5), (12, -4), (21, 13)]
-x, y, yaw = -22.0, -14.0, 0.6
+WP = sc.WAYPOINTS
+x, y, yaw = sc.START
 v = 0.0
 w_ = 0.0
 wi = 0
@@ -71,7 +67,7 @@ wrap = lambda a: math.atan2(math.sin(a), math.cos(a))
 
 while t < 200:
     ev = ""
-    if abs(t - 18) < dt / 2:
+    if int(round(t / dt)) == int(18 / dt):
         bad += 1
         ev = "SPOOFED CAN FRAME REJECTED (SecOC MAC mismatch)"
     if arrived_t and t > arrived_t + 4 and not zero:
@@ -143,9 +139,9 @@ for cx, cy, ww, hh in ditches:
     ax.add_patch(plt.Rectangle((cx - ww / 2, cy - hh / 2), ww, hh, fc="k", ec="#e5484d", lw=1.2))
 for rx, ry, s, a in rocks:
     ax.add_patch(Circle((rx, ry), s * 0.85, fc="#8a8f8c", ec="#333"))
-ax.add_patch(Circle((21, 13), 0.8, fc="#f5d547", alpha=0.8))
-ax.text(21, 14.3, "GOAL", color="#f5d547", ha="center", fontsize=9)
-ax.plot([-22] + [p[0] for p in WP], [-14] + [p[1] for p in WP], "--", color="#4ade80", lw=1, alpha=0.5)
+ax.add_patch(Circle(sc.GOAL, 0.8, fc="#f5d547", alpha=0.8))
+ax.text(sc.GOAL[0], sc.GOAL[1] + 1.3, "GOAL", color="#f5d547", ha="center", fontsize=9)
+ax.plot([sc.START[0]] + [p[0] for p in WP], [sc.START[1]] + [p[1] for p in WP], "--", color="#4ade80", lw=1, alpha=0.5)
 for i, p in enumerate(WP):
     ax.plot(*p, "o", color="#4ade80", ms=4)
 
@@ -154,7 +150,7 @@ ax.set_ylim(-18, 18)
 ax.set_aspect("equal")
 ax.set_facecolor("#0c110f")
 ax.tick_params(colors="#888")
-ax.set_title("Netra UGV — Tactical Webots Simulation Trajectory & HUD", color="#e4ebe6", fontsize=11)
+ax.set_title("Netra UGV — Tactical Mission Model (headless kinematic replay) Trajectory & HUD", color="#e4ebe6", fontsize=11)
 
 trail, = ax.plot([], [], color="#5fcf8a", lw=2)
 body = Polygon([[0, 0]] * 4, closed=True, fc="#5fcf8a", ec="w", zorder=5)
@@ -188,11 +184,11 @@ hud.text(0, 0.42, log_str, color="#9fb0a6", va="top", fontsize=9, family="monosp
 banner = ax.text(0, 0, "KEYS ZEROIZED — SYSTEM LOCKED", color="w", fontsize=14, ha="center", va="center", weight="bold", zorder=9, bbox=dict(fc="#b02a2a", alpha=0.85, ec="none"))
 banner.set_position((x_end, y_end + 3 if y_end < 12 else y_end - 3))
 
-summary_plot_path = "sim/webots/netra_ugv_sim_trajectory.png"
+summary_plot_path = os.path.join(args.out, "netra_ugv_sim_trajectory.png")
 fig.savefig(summary_plot_path, dpi=120)
 print(f"[OK] Saved mission trajectory summary plot: {summary_plot_path}")
 
-out_mp4 = "/mnt/user-data/outputs/netra_ugv_sim.mp4" if os.path.exists("/mnt/user-data/outputs") else "sim/webots/netra_ugv_sim.mp4"
+out_mp4 = os.path.join(args.out, "netra_ugv_sim.mp4")
 has_ffmpeg = shutil.which("ffmpeg") is not None
 
 if has_ffmpeg:

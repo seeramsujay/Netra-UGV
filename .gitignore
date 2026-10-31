@@ -68,3 +68,5 @@ core.*
 *.p12
 *.pfx
 secrets/
+exports/
+sim/carla_env/
