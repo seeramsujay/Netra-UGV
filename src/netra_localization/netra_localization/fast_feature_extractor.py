@@ -12,9 +12,10 @@ Reference: MASTER_PROJECT_REPORT.md §3.3, TECHNICAL_ARCHITECTURE.md §2
   Execution: Sub-millisecond on ARM Cortex-A78AE
 """
 
-import numpy as np
+from typing import List
+
 import cv2
-from typing import List, Tuple
+import numpy as np
 
 
 class FASTFeatureExtractor:
@@ -85,9 +86,8 @@ class FASTFeatureExtractor:
                 keypoints = self.detector.detect(cell)
 
                 # Sort by response (strength) and keep top-K
-                keypoints = sorted(keypoints, key=lambda kp: kp.response,
-                                   reverse=True)
-                keypoints = keypoints[:self.max_per_cell]
+                keypoints = sorted(keypoints, key=lambda kp: kp.response, reverse=True)
+                keypoints = keypoints[: self.max_per_cell]
 
                 # Offset keypoint coordinates to full-frame
                 for kp in keypoints:
@@ -102,17 +102,14 @@ class FASTFeatureExtractor:
                 nonmaxSuppression=True,
             )
             backup_kps = backup_detector.detect(gray_image)
-            backup_kps = sorted(backup_kps, key=lambda kp: kp.response,
-                                reverse=True)
+            backup_kps = sorted(backup_kps, key=lambda kp: kp.response, reverse=True)
             # Supplement with additional features
             needed = self.min_total - len(all_keypoints)
             all_keypoints.extend(backup_kps[:needed])
 
         return all_keypoints
 
-    def extract_points(
-        self, gray_image: np.ndarray
-    ) -> np.ndarray:
+    def extract_points(self, gray_image: np.ndarray) -> np.ndarray:
         """
         Convenience method: detect and return as Nx2 numpy array.
 
@@ -123,7 +120,5 @@ class FASTFeatureExtractor:
         if not keypoints:
             return np.empty((0, 2), dtype=np.float32)
 
-        points = np.array(
-            [kp.pt for kp in keypoints], dtype=np.float32
-        )
+        points = np.array([kp.pt for kp in keypoints], dtype=np.float32)
         return points

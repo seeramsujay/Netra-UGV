@@ -22,10 +22,11 @@ Usage:
   python scripts/test_bisenetv2_onnx.py
 """
 
+import argparse
 import os
 import sys
 import time
-import argparse
+
 import cv2
 import numpy as np
 
@@ -40,6 +41,7 @@ if sys.platform == "win32":
 # Add torch's CUDA DLLs if available so ONNX Runtime can use CUDAExecutionProvider
 try:
     import torch
+
     torch_lib = os.path.join(os.path.dirname(torch.__file__), "lib")
     if os.path.exists(torch_lib) and hasattr(os, "add_dll_directory"):
         os.add_dll_directory(torch_lib)
@@ -53,10 +55,10 @@ except ImportError:
 
 # 4 Outdoor Terrain Traversability Classes
 CLASS_NAMES = [
-    "SOLID_GROUND",       # 0: Soil, dirt road, gravel, asphalt
+    "SOLID_GROUND",  # 0: Soil, dirt road, gravel, asphalt
     "PLIANT_VEGETATION",  # 1: Grass, light brush
-    "MUD_HAZARD",         # 2: Wet mud, marsh, puddles, water
-    "RIGID_OBSTACLE",     # 3: Trees, rocks, poles, obstacles
+    "MUD_HAZARD",  # 2: Wet mud, marsh, puddles, water
+    "RIGID_OBSTACLE",  # 3: Trees, rocks, poles, obstacles
 ]
 NUM_CLASSES = 4
 
@@ -66,10 +68,10 @@ NUM_CLASSES = 4
 # 2 = MUD_HAZARD:        Orange / Mud    -> RGB [230, 126, 34]  -> BGR [34, 126, 230]
 # 3 = RIGID_OBSTACLE:    Lethal Red      -> RGB [231, 76, 60]   -> BGR [60, 76, 231]
 COLORMAP_BGR = np.zeros((NUM_CLASSES, 3), dtype=np.uint8)
-COLORMAP_BGR[0] = [90, 140, 180]   # SOLID_GROUND
-COLORMAP_BGR[1] = [113, 204, 46]   # PLIANT_VEGETATION
-COLORMAP_BGR[2] = [34, 126, 230]   # MUD_HAZARD
-COLORMAP_BGR[3] = [60, 76, 231]    # RIGID_OBSTACLE
+COLORMAP_BGR[0] = [90, 140, 180]  # SOLID_GROUND
+COLORMAP_BGR[1] = [113, 204, 46]  # PLIANT_VEGETATION
+COLORMAP_BGR[2] = [34, 126, 230]  # MUD_HAZARD
+COLORMAP_BGR[3] = [60, 76, 231]  # RIGID_OBSTACLE
 
 
 def run_test(
@@ -95,7 +97,11 @@ def run_test(
 
     # 2. Load ONNX model with available backend (ONNX Runtime or OpenCV DNN)
     if ort is not None:
-        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if "CUDAExecutionProvider" in ort.get_available_providers() else ["CPUExecutionProvider"]
+        providers = (
+            ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            if "CUDAExecutionProvider" in ort.get_available_providers()
+            else ["CPUExecutionProvider"]
+        )
         try:
             session = ort.InferenceSession(model_path, providers=providers)
         except Exception:
@@ -167,7 +173,9 @@ def run_test(
     # 10. Print required results
     print("-" * 70)
     print(f"Input Shape:      {blob.shape}  (Batch=1, Channels=3, Height={target_h}, Width={target_w})")
-    print(f"Output Shape:     {output_tensor.shape}  (Batch=1, Classes={NUM_CLASSES}, Height={target_h}, Width={target_w})")
+    print(
+        f"Output Shape:     {output_tensor.shape}  (Batch=1, Classes={NUM_CLASSES}, Height={target_h}, Width={target_w})"
+    )
     print(f"Inference Time:   {infer_time_ms:.2f} ms")
     print("-" * 70)
     print("Class Distribution:")

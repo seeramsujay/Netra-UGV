@@ -1,0 +1,33 @@
+name: Python & Robotics CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Code Quality & Simulation Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install pytest black ruff flake8 numpy scipy pyyaml
+
+      - name: Verify Linters
+        run: |
+          black --check .
+          ruff check .
+          flake8 .
+
+      - name: Run Test Suite
+        run: |
+          pytest

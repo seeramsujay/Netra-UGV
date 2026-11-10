@@ -32,7 +32,7 @@ def test_start_area_is_flat_and_goal_reachable():
 
 def test_waypoints_avoid_ditches_and_are_integers():
     for wx, wy in sc.WAYPOINTS:
-        assert isinstance(wx, int) and isinstance(wy, int)     # Webots HMAC-signs "%d,%d"
+        assert isinstance(wx, int) and isinstance(wy, int)  # Webots HMAC-signs "%d,%d"
         assert not sc.in_ditch(wx, wy, pad=0.5)
     assert tuple(map(float, sc.WAYPOINTS[-1])) == sc.GOAL
 

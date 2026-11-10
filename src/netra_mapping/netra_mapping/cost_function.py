@@ -13,15 +13,16 @@ Where:
   w4: Void (ditch) cost          — 255 (lethal) if Bayesian-confirmed
 """
 
-import numpy as np
 from typing import Dict
+
+import numpy as np
 
 # Semantic class cost mapping (matches TerrainClassification.msg constants)
 SEMANTIC_COSTS: Dict[int, int] = {
-    0: 0,     # SOLID_GROUND:      Free passage
-    1: 35,    # PLIANT_VEGETATION: Speed-governed traversal
-    2: 75,    # MUD_HAZARD:        High traction risk
-    3: 255,   # RIGID_OBSTACLE:    Lethal barrier
+    0: 0,  # SOLID_GROUND:      Free passage
+    1: 35,  # PLIANT_VEGETATION: Speed-governed traversal
+    2: 75,  # MUD_HAZARD:        High traction risk
+    3: 255,  # RIGID_OBSTACLE:    Lethal barrier
 }
 
 
@@ -71,7 +72,6 @@ class CostFunction:
         Returns:
             2D uint8 costmap of shape (N, N), values in [0, 255].
         """
-        N = elevation.shape[0]
 
         # --- Component 1: Slope gradient ‖∇Z(x,y)‖ ---
         # Sobel gradients for dZ/dx and dZ/dy
@@ -81,7 +81,7 @@ class CostFunction:
         dz_dx[:, 1:-1] = (elevation[:, 2:] - elevation[:, :-2]) / (2.0 * self.res)
         dz_dy[1:-1, :] = (elevation[2:, :] - elevation[:-2, :]) / (2.0 * self.res)
 
-        slope_magnitude = np.sqrt(dz_dx ** 2 + dz_dy ** 2)
+        slope_magnitude = np.sqrt(dz_dx**2 + dz_dy**2)
 
         # --- Component 2: Roughness (local height variance) ---
         # Use the Welford variance already computed in elevation_grid

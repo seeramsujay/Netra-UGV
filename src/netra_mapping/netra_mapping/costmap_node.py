@@ -18,22 +18,20 @@ Reference: TECHNICAL_ARCHITECTURE.md §5.4
   Frequency: 10 Hz
 """
 
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-
-from nav_msgs.msg import Odometry, OccupancyGrid, MapMetaData
-from sensor_msgs.msg import Image
-from netra_msgs.msg import TerrainClassification, NegativeObstacleVoid
-from geometry_msgs.msg import Pose
+import logging
+import time
 
 import numpy as np
-import time
-import logging
+import rclpy
+from geometry_msgs.msg import Pose
+from nav_msgs.msg import MapMetaData, OccupancyGrid, Odometry
+from rclpy.node import Node
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 
-from netra_mapping.elevation_grid import ElevationGrid
-from netra_mapping.cost_function import CostFunction
 from netra_mapping.barrier_injector import BarrierInjector
+from netra_mapping.cost_function import CostFunction
+from netra_mapping.elevation_grid import ElevationGrid
+from netra_msgs.msg import NegativeObstacleVoid, TerrainClassification
 
 logger = logging.getLogger(__name__)
 
@@ -44,35 +42,35 @@ class CostmapNode(Node):
     """
 
     def __init__(self):
-        super().__init__('costmap_node')
+        super().__init__("costmap_node")
 
         # --- Parameters ---
-        self.declare_parameter('grid_size', 100)
-        self.declare_parameter('resolution', 0.1)
-        self.declare_parameter('update_rate_hz', 10.0)
-        self.declare_parameter('w_slope', 80.0)
-        self.declare_parameter('w_roughness', 60.0)
-        self.declare_parameter('w_semantic', 1.0)
-        self.declare_parameter('w_void', 255.0)
-        self.declare_parameter('inflation_radius_m', 0.3)
+        self.declare_parameter("grid_size", 100)
+        self.declare_parameter("resolution", 0.1)
+        self.declare_parameter("update_rate_hz", 10.0)
+        self.declare_parameter("w_slope", 80.0)
+        self.declare_parameter("w_roughness", 60.0)
+        self.declare_parameter("w_semantic", 1.0)
+        self.declare_parameter("w_void", 255.0)
+        self.declare_parameter("inflation_radius_m", 0.3)
 
-        grid_size = self.get_parameter('grid_size').value
-        resolution = self.get_parameter('resolution').value
-        rate = self.get_parameter('update_rate_hz').value
+        grid_size = self.get_parameter("grid_size").value
+        resolution = self.get_parameter("resolution").value
+        rate = self.get_parameter("update_rate_hz").value
 
         # --- Initialize components ---
         self.grid = ElevationGrid(grid_size=grid_size, resolution=resolution)
 
         self.cost_fn = CostFunction(
-            w_slope=self.get_parameter('w_slope').value,
-            w_roughness=self.get_parameter('w_roughness').value,
-            w_semantic=self.get_parameter('w_semantic').value,
-            w_void=self.get_parameter('w_void').value,
+            w_slope=self.get_parameter("w_slope").value,
+            w_roughness=self.get_parameter("w_roughness").value,
+            w_semantic=self.get_parameter("w_semantic").value,
+            w_void=self.get_parameter("w_void").value,
             resolution=resolution,
         )
 
         self.barrier_injector = BarrierInjector(
-            inflation_radius_m=self.get_parameter('inflation_radius_m').value,
+            inflation_radius_m=self.get_parameter("inflation_radius_m").value,
             resolution=resolution,
         )
 
@@ -85,37 +83,46 @@ class CostmapNode(Node):
         # --- QoS ---
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST, depth=1,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
         )
         reliable_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
-            history=HistoryPolicy.KEEP_LAST, depth=5,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=5,
         )
 
         # --- Subscribers ---
         self.odom_sub = self.create_subscription(
-            Odometry, '/odom', self._on_odom, sensor_qos,
+            Odometry,
+            "/odom",
+            self._on_odom,
+            sensor_qos,
         )
         self.terrain_sub = self.create_subscription(
-            TerrainClassification, '/netra/terrain_classification',
-            self._on_terrain, reliable_qos,
+            TerrainClassification,
+            "/netra/terrain_classification",
+            self._on_terrain,
+            reliable_qos,
         )
         self.obstacle_sub = self.create_subscription(
-            NegativeObstacleVoid, '/netra/negative_obstacle',
-            self._on_obstacle, reliable_qos,
+            NegativeObstacleVoid,
+            "/netra/negative_obstacle",
+            self._on_obstacle,
+            reliable_qos,
         )
 
         # --- Publisher ---
         self.costmap_pub = self.create_publisher(
-            OccupancyGrid, '/netra/elevation_costmap', reliable_qos,
+            OccupancyGrid,
+            "/netra/elevation_costmap",
+            reliable_qos,
         )
 
         # --- Update timer ---
         self.timer = self.create_timer(1.0 / rate, self._update_callback)
 
-        self.get_logger().info(
-            f"Costmap node initialized [{grid_size}x{grid_size} @ {resolution}m]"
-        )
+        self.get_logger().info(f"Costmap node initialized [{grid_size}x{grid_size} @ {resolution}m]")
 
     def _on_odom(self, msg: Odometry):
         """Update vehicle position for grid scrolling."""
@@ -126,9 +133,7 @@ class CostmapNode(Node):
     def _on_terrain(self, msg: TerrainClassification):
         """Cache latest terrain classification for costmap fusion."""
         try:
-            mask = np.array(msg.semantic_mask, dtype=np.uint8).reshape(
-                msg.height, msg.width
-            )
+            mask = np.array(msg.semantic_mask, dtype=np.uint8).reshape(msg.height, msg.width)
             self.latest_semantic = mask
         except Exception as e:
             self.get_logger().warn(f"Terrain msg decode error: {e}")
@@ -167,8 +172,10 @@ class CostmapNode(Node):
         # Compute cost
         variance = self.grid.get_variance_grid()
         costmap = self.cost_fn.compute(
-            self.grid.elevation, variance,
-            self.grid.semantic, self.grid.void_flag,
+            self.grid.elevation,
+            variance,
+            self.grid.semantic,
+            self.grid.void_flag,
         )
 
         # Publish as OccupancyGrid
@@ -178,15 +185,13 @@ class CostmapNode(Node):
         elapsed_ms = (time.monotonic() - t_start) * 1000.0
 
         if self.update_count % 50 == 0:
-            self.get_logger().info(
-                f"Costmap #{self.update_count}: {elapsed_ms:.1f} ms"
-            )
+            self.get_logger().info(f"Costmap #{self.update_count}: {elapsed_ms:.1f} ms")
 
     def _publish_costmap(self, costmap: np.ndarray):
         """Convert and publish costmap as OccupancyGrid."""
         msg = OccupancyGrid()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'odom'
+        msg.header.frame_id = "odom"
 
         msg.info = MapMetaData()
         msg.info.resolution = self.grid.res
@@ -216,5 +221,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

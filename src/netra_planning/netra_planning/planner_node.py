@@ -22,14 +22,15 @@ Reference:
   TECHNICAL_ARCHITECTURE.md §2 (POSIX SCHED_FIFO 70 on Cores 4-5) & §7 (17.8 ms Latency Budget)
 """
 
-import numpy as np
-import math
-import time
-import struct
 import hashlib
 import hmac
 import logging
-from typing import Optional, Tuple, List
+import math
+import struct
+import time
+from typing import List, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -37,74 +38,124 @@ logger = logging.getLogger(__name__)
 try:
     import rclpy
     from rclpy.node import Node
-    from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+    from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+
     _HAS_RCLPY = True
 except ImportError:
     _HAS_RCLPY = False
+
     class Node:
-        def __init__(self, *args, **kwargs): pass
-        def declare_parameter(self, *args, **kwargs): pass
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def declare_parameter(self, *args, **kwargs):
+            pass
+
         def get_parameter(self, *args, **kwargs):
             class _P:
                 def get_parameter_value(self):
                     class _V:
                         double_value = 1.0
                         string_value = ""
+
                     return _V()
+
             return _P()
-        def create_publisher(self, *args, **kwargs): pass
-        def create_subscription(self, *args, **kwargs): pass
-        def create_timer(self, *args, **kwargs): pass
-        def get_logger(self): return logger
+
+        def create_publisher(self, *args, **kwargs):
+            pass
+
+        def create_subscription(self, *args, **kwargs):
+            pass
+
+        def create_timer(self, *args, **kwargs):
+            pass
+
+        def get_logger(self):
+            return logger
+
         def get_clock(self):
             class _C:
                 def now(self):
                     class _T:
-                        def to_msg(self): return None
+                        def to_msg(self):
+                            return None
+
                     return _T()
+
             return _C()
 
     class QoSProfile:
-        def __init__(self, *args, **kwargs): pass
+        def __init__(self, *args, **kwargs):
+            pass
+
     class ReliabilityPolicy:
         RELIABLE = 1
         BEST_EFFORT = 2
+
     class HistoryPolicy:
         KEEP_LAST = 1
 
+
 try:
-    from geometry_msgs.msg import Twist, PoseStamped
-    from nav_msgs.msg import Odometry, OccupancyGrid, Path
+    from geometry_msgs.msg import PoseStamped, Twist
+    from nav_msgs.msg import OccupancyGrid, Odometry, Path
     from sensor_msgs.msg import Imu
     from std_msgs.msg import Header
-    from netra_msgs.msg import SecuredTwist, FailsafeState, TerrainClassification
+
+    from netra_msgs.msg import FailsafeState, SecuredTwist, TerrainClassification
 except ImportError:
+
     class Header:
         def __init__(self):
             self.stamp = None
-            self.frame_id = ''
+            self.frame_id = ""
+
     class Twist:
         def __init__(self):
             class _V:
-                x = 0.0; y = 0.0; z = 0.0
+                x = 0.0
+                y = 0.0
+                z = 0.0
+
             self.linear = _V()
             self.angular = _V()
+
     class PoseStamped:
         def __init__(self):
             self.header = Header()
+
             class _P:
-                class _Pos: x = 0.0; y = 0.0; z = 0.0
-                class _Ori: x = 0.0; y = 0.0; z = 0.0; w = 1.0
+                class _Pos:
+                    x = 0.0
+                    y = 0.0
+                    z = 0.0
+
+                class _Ori:
+                    x = 0.0
+                    y = 0.0
+                    z = 0.0
+                    w = 1.0
+
                 position = _Pos()
                 orientation = _Ori()
+
             self.pose = _P()
-    class Odometry: pass
-    class OccupancyGrid: pass
+
+    class Odometry:
+        pass
+
+    class OccupancyGrid:
+        pass
+
     class Path:
         def __init__(self):
             self.header = Header()
             self.poses = []
-    class Imu: pass
+
+    class Imu:
+        pass
+
     class SecuredTwist:
         def __init__(self):
             self.header = Header()
@@ -112,47 +163,51 @@ except ImportError:
             self.angular_velocity_z = 0.0
             self.freshness_counter = 0
             self.aes_cmac = [0] * 8
-    class FailsafeState: pass
+
+    class FailsafeState:
+        pass
+
     class TerrainClassification:
         def __init__(self):
             self.semantic_mask = []
             self.class_mask = []
 
-from netra_planning.teb_planner import TEBPlanner
+
+from netra_planning.safety_guards import GuardStatus, SafetyGuards
 from netra_planning.speed_governor import (
-    SpeedGovernor,
-    MODE_NOMINAL,
-    MODE_VISION_DEGRADED,
-    MODE_VISION_CRITICAL,
-    MODE_SECURITY_TAMPER,
-    CLASS_PLIANT_VEGETATION,
     CLASS_MUD_HAZARD,
+    CLASS_PLIANT_VEGETATION,
+    MODE_NOMINAL,
+    SpeedGovernor,
 )
-from netra_planning.safety_guards import SafetyGuards, GuardStatus
+from netra_planning.teb_planner import TEBPlanner
 
 # CAN-FD Motor Command Dispatch Helper
 try:
     from netra_security.crypto_utils import (
         FreshnessCounter,
-        load_secoc_key,
         build_secoc_payload,
+        load_secoc_key,
     )
 except ImportError:
+
     class FreshnessCounter:
         def __init__(self):
             self._val = 0
+
         def increment(self):
             self._val = (self._val + 1) & 0xFFFFFFFF
             return self._val
+
         def to_bytes(self):
-            return struct.pack('>I', self._val)
+            return struct.pack(">I", self._val)
 
     def load_secoc_key(path=None):
         return hashlib.sha256(b"NETRA_UGV_SECOC_SIM_KEY_v1").digest()[:16]
 
     def build_secoc_payload(v, omega, freshness, key):
         c = freshness.increment()
-        data = struct.pack('>ffI', v, omega, c)
+        data = struct.pack(">ffI", v, omega, c)
         mac = hmac.new(key, data, hashlib.sha256).digest()[:8]
         return c, mac
 
@@ -182,26 +237,26 @@ class PlannerNode(Node):
     """
 
     def __init__(self):
-        super().__init__('netra_planner')
+        super().__init__("netra_planner")
 
         # --- Parameters ---
-        self.declare_parameter('control_rate_hz', 20.0)
-        self.declare_parameter('v_max', 1.5)
-        self.declare_parameter('v_min', -0.5)
-        self.declare_parameter('omega_max', 1.5)
-        self.declare_parameter('acc_linear_max', 1.5)
-        self.declare_parameter('acc_angular_max', 2.0)
-        self.declare_parameter('secoc_key_path', '')
-        self.declare_parameter('default_waypoint_distance', 5.0)
+        self.declare_parameter("control_rate_hz", 20.0)
+        self.declare_parameter("v_max", 1.5)
+        self.declare_parameter("v_min", -0.5)
+        self.declare_parameter("omega_max", 1.5)
+        self.declare_parameter("acc_linear_max", 1.5)
+        self.declare_parameter("acc_angular_max", 2.0)
+        self.declare_parameter("secoc_key_path", "")
+        self.declare_parameter("default_waypoint_distance", 5.0)
 
-        rate_hz = self.get_parameter('control_rate_hz').get_parameter_value().double_value
-        v_max = self.get_parameter('v_max').get_parameter_value().double_value
-        v_min = self.get_parameter('v_min').get_parameter_value().double_value
-        omega_max = self.get_parameter('omega_max').get_parameter_value().double_value
-        acc_lin = self.get_parameter('acc_linear_max').get_parameter_value().double_value
-        acc_ang = self.get_parameter('acc_angular_max').get_parameter_value().double_value
-        key_path = self.get_parameter('secoc_key_path').get_parameter_value().string_value
-        self.default_wp_dist = self.get_parameter('default_waypoint_distance').get_parameter_value().double_value
+        rate_hz = self.get_parameter("control_rate_hz").get_parameter_value().double_value
+        v_max = self.get_parameter("v_max").get_parameter_value().double_value
+        v_min = self.get_parameter("v_min").get_parameter_value().double_value
+        omega_max = self.get_parameter("omega_max").get_parameter_value().double_value
+        acc_lin = self.get_parameter("acc_linear_max").get_parameter_value().double_value
+        acc_ang = self.get_parameter("acc_angular_max").get_parameter_value().double_value
+        key_path = self.get_parameter("secoc_key_path").get_parameter_value().string_value
+        self.default_wp_dist = self.get_parameter("default_waypoint_distance").get_parameter_value().double_value
 
         # --- Sub-components ---
         self.teb = TEBPlanner(
@@ -249,25 +304,30 @@ class PlannerNode(Node):
         )
 
         # --- Publishers ---
-        self.secured_pub = self.create_publisher(SecuredTwist, '/cmd_vel_secured', qos_reliable)
-        self.twist_pub = self.create_publisher(Twist, '/cmd_vel', qos_reliable)
-        self.path_pub = self.create_publisher(Path, '/netra/local_plan', qos_reliable)
+        self.secured_pub = self.create_publisher(SecuredTwist, "/cmd_vel_secured", qos_reliable)
+        self.twist_pub = self.create_publisher(Twist, "/cmd_vel", qos_reliable)
+        self.path_pub = self.create_publisher(Path, "/netra/local_plan", qos_reliable)
 
         # --- Subscribers ---
-        self.odom_sub = self.create_subscription(Odometry, '/odom', self._odom_cb, qos_reliable)
-        self.costmap_sub = self.create_subscription(OccupancyGrid, '/netra/elevation_costmap', self._costmap_cb, qos_best_effort)
-        self.failsafe_sub = self.create_subscription(FailsafeState, '/netra/failsafe_state', self._failsafe_cb, qos_reliable)
-        self.goal_sub = self.create_subscription(PoseStamped, '/goal_pose', self._goal_cb, qos_reliable)
-        self.imu_sub = self.create_subscription(Imu, '/imu/data', self._imu_cb, qos_best_effort)
-        self.terrain_sub = self.create_subscription(TerrainClassification, '/netra/terrain_classification', self._terrain_cb, qos_best_effort)
+        self.odom_sub = self.create_subscription(Odometry, "/odom", self._odom_cb, qos_reliable)
+        self.costmap_sub = self.create_subscription(
+            OccupancyGrid, "/netra/elevation_costmap", self._costmap_cb, qos_best_effort
+        )
+        self.failsafe_sub = self.create_subscription(
+            FailsafeState, "/netra/failsafe_state", self._failsafe_cb, qos_reliable
+        )
+        self.goal_sub = self.create_subscription(PoseStamped, "/goal_pose", self._goal_cb, qos_reliable)
+        self.imu_sub = self.create_subscription(Imu, "/imu/data", self._imu_cb, qos_best_effort)
+        self.terrain_sub = self.create_subscription(
+            TerrainClassification, "/netra/terrain_classification", self._terrain_cb, qos_best_effort
+        )
 
         # --- Real-Time Control Loop Timer (20 Hz) ---
         if _HAS_RCLPY:
             self.timer = self.create_timer(1.0 / rate_hz, self._control_loop)
 
         self.get_logger().info(
-            f"NETRA Planner Node started at {rate_hz:.1f} Hz. "
-            f"CAN-FD motor bus active. TEB planner ready."
+            f"NETRA Planner Node started at {rate_hz:.1f} Hz. " f"CAN-FD motor bus active. TEB planner ready."
         )
 
     # -----------------------------------------------------------------------
@@ -310,7 +370,7 @@ class PlannerNode(Node):
 
     def _terrain_cb(self, msg: TerrainClassification):
         """Estimate forward corridor vegetation and mud density from semantic mask."""
-        raw_mask = getattr(msg, 'semantic_mask', getattr(msg, 'class_mask', []))
+        raw_mask = getattr(msg, "semantic_mask", getattr(msg, "class_mask", []))
         if len(raw_mask) == 0:
             return
         mask = np.array(raw_mask, dtype=np.uint8)
@@ -419,7 +479,7 @@ class PlannerNode(Node):
         # 1. SecuredTwist for CAN-FD SecOC Actuation Driver
         sec_msg = SecuredTwist()
         sec_msg.header.stamp = stamp
-        sec_msg.header.frame_id = 'base_link'
+        sec_msg.header.frame_id = "base_link"
         sec_msg.linear_velocity_x = float(v)
         sec_msg.angular_velocity_z = float(omega)
         sec_msg.freshness_counter = counter_val
@@ -440,7 +500,7 @@ class PlannerNode(Node):
 
         path_msg = Path()
         path_msg.header.stamp = self.get_clock().now().to_msg()
-        path_msg.header.frame_id = 'odom'
+        path_msg.header.frame_id = "odom"
 
         for x, y, th in points:
             pose = PoseStamped()
@@ -470,5 +530,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -1,4 +1,5 @@
 """Frame maths shared by the simulator bridges (pure Python, no ROS)."""
+
 import math
 
 
@@ -11,10 +12,12 @@ def rpy_to_quaternion(roll, pitch, yaw):
     cr, sr = math.cos(roll / 2), math.sin(roll / 2)
     cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
     cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
-    return (sr * cp * cy - cr * sp * sy,
-            cr * sp * cy + sr * cp * sy,
-            cr * cp * sy - sr * sp * cy,
-            cr * cp * cy + sr * sp * sy)
+    return (
+        sr * cp * cy - cr * sp * sy,
+        cr * sp * cy + sr * cp * sy,
+        cr * cp * sy - sr * sp * cy,
+        cr * cp * cy + sr * sp * sy,
+    )
 
 
 def quaternion_to_rpy(x, y, z, w):
@@ -35,8 +38,7 @@ def anchor_pose(x, y, yaw, spawn, anchor):
     c, s = math.cos(-spawn[2]), math.sin(-spawn[2])
     lx, ly = dx * c - dy * s, dx * s + dy * c
     c, s = math.cos(anchor[2]), math.sin(anchor[2])
-    return (anchor[0] + lx * c - ly * s, anchor[1] + lx * s + ly * c,
-            wrap_angle(anchor[2] + (yaw - spawn[2])))
+    return (anchor[0] + lx * c - ly * s, anchor[1] + lx * s + ly * c, wrap_angle(anchor[2] + (yaw - spawn[2])))
 
 
 def world_to_start_frame(wx, wy, start):

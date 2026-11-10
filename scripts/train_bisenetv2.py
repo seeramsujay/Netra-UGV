@@ -19,20 +19,19 @@ Usage:
   python scripts/train_bisenetv2.py --epochs 40 --batch-size 4 --lr 1e-3 --amp
 """
 
-import os
-import sys
 import argparse
-import time
-import math
+import os
 import random
+import sys
+import time
+from typing import Optional, Tuple
+
 import cv2
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-from typing import Dict, List, Tuple, Optional
 
 # Add perception package to sys.path to load BiSeNetV2
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -44,8 +43,8 @@ from bisenetv2_model import BiSeNetV2
 
 if sys.platform == "win32":
     try:
-        sys.stdout.reconfigure(encoding='utf-8')
-        sys.stderr.reconfigure(encoding='utf-8')
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
         pass
 
@@ -56,18 +55,18 @@ IGNORE_INDEX = 255
 
 # Fast LUT for raw RELLIS-3D IDs to NETRA 4 Classes
 LUT_CONVERT = np.full(256, IGNORE_INDEX, dtype=np.uint8)
-LUT_CONVERT[1] = 0   # dirt -> SOLID_GROUND
+LUT_CONVERT[1] = 0  # dirt -> SOLID_GROUND
 LUT_CONVERT[10] = 0  # asphalt -> SOLID_GROUND
 LUT_CONVERT[23] = 0  # concrete -> SOLID_GROUND
-LUT_CONVERT[3] = 1   # grass -> PLIANT_VEGETATION
+LUT_CONVERT[3] = 1  # grass -> PLIANT_VEGETATION
 LUT_CONVERT[19] = 1  # bush -> PLIANT_VEGETATION
-LUT_CONVERT[6] = 2   # water -> MUD_HAZARD
+LUT_CONVERT[6] = 2  # water -> MUD_HAZARD
 LUT_CONVERT[31] = 2  # puddle -> MUD_HAZARD
 LUT_CONVERT[33] = 2  # mud -> MUD_HAZARD
-LUT_CONVERT[4] = 3   # tree -> RIGID_OBSTACLE
-LUT_CONVERT[5] = 3   # pole -> RIGID_OBSTACLE
-LUT_CONVERT[8] = 3   # vehicle -> RIGID_OBSTACLE
-LUT_CONVERT[9] = 3   # object -> RIGID_OBSTACLE
+LUT_CONVERT[4] = 3  # tree -> RIGID_OBSTACLE
+LUT_CONVERT[5] = 3  # pole -> RIGID_OBSTACLE
+LUT_CONVERT[8] = 3  # vehicle -> RIGID_OBSTACLE
+LUT_CONVERT[9] = 3  # object -> RIGID_OBSTACLE
 LUT_CONVERT[12] = 3  # building -> RIGID_OBSTACLE
 LUT_CONVERT[15] = 3  # log -> RIGID_OBSTACLE
 LUT_CONVERT[17] = 3  # person -> RIGID_OBSTACLE
@@ -97,7 +96,7 @@ class RELLISDataset(Dataset):
         self.cache_dir = cache_dir
 
         with open(split_file, "r") as f:
-            lines = [l.strip() for l in f if l.strip()]
+            lines = [line.strip() for line in f if line.strip()]
 
         self.samples = []
         for line in lines:
@@ -174,14 +173,14 @@ class ConfusionMatrix:
         self.matrix = np.zeros((num_classes, num_classes), dtype=np.int64)
 
     def update(self, preds: np.ndarray, targets: np.ndarray):
-        valid = (targets != self.ignore_index)
+        valid = targets != self.ignore_index
         t = targets[valid]
         p = preds[valid]
         valid_p = (p >= 0) & (p < self.num_classes)
         t = t[valid_p]
         p = p[valid_p]
         indices = self.num_classes * t + p
-        counts = np.bincount(indices, minlength=self.num_classes ** 2)
+        counts = np.bincount(indices, minlength=self.num_classes**2)
         self.matrix += counts.reshape(self.num_classes, self.num_classes)
 
     def get_iou(self) -> Tuple[np.ndarray, float]:
@@ -190,7 +189,7 @@ class ConfusionMatrix:
         fn = np.sum(self.matrix, axis=1) - tp
         denom = tp + fp + fn
         iou = np.divide(tp, denom, out=np.zeros_like(tp, dtype=float), where=denom != 0)
-        valid_classes = (np.sum(self.matrix, axis=1) > 0)
+        valid_classes = np.sum(self.matrix, axis=1) > 0
         miou = float(np.mean(iou[valid_classes])) if np.any(valid_classes) else 0.0
         return iou, miou
 
@@ -219,7 +218,7 @@ def train_epoch(
 
         optimizer.zero_grad(set_to_none=True)
 
-        with torch.amp.autocast('cuda', enabled=use_amp):
+        with torch.amp.autocast("cuda", enabled=use_amp):
             if use_aux:
                 out, a2, a3, a4, a5 = model(images)
                 loss_main = criterion(out, masks)
@@ -263,7 +262,7 @@ def validate_epoch(
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True)
 
-        with torch.amp.autocast('cuda', enabled=use_amp):
+        with torch.amp.autocast("cuda", enabled=use_amp):
             out = model(images)
             loss = criterion(out, masks)
 
@@ -283,12 +282,18 @@ def main():
     parser.add_argument("--batch-size", type=int, default=4, help="Batch size (default: 4, safe for 6GB RTX 4050)")
     parser.add_argument("--lr", type=float, default=1e-3, help="Initial learning rate (default: 0.001)")
     parser.add_argument("--workers", type=int, default=2, help="DataLoader num_workers (default: 2)")
-    parser.add_argument("--img-root", type=str, default=r"C:\Users\Aditya\Desktop\ai\Rellis_3D_pylon_camera_node\Rellis-3D")
-    parser.add_argument("--label-root", type=str, default=r"C:\Users\Aditya\Desktop\ai\Rellis_3D_pylon_camera_node_label_id\Rellis-3D")
+    parser.add_argument(
+        "--img-root", type=str, default=r"C:\Users\Aditya\Desktop\ai\Rellis_3D_pylon_camera_node\Rellis-3D"
+    )
+    parser.add_argument(
+        "--label-root", type=str, default=r"C:\Users\Aditya\Desktop\ai\Rellis_3D_pylon_camera_node_label_id\Rellis-3D"
+    )
     parser.add_argument("--split-root", type=str, default=r"C:\Users\Aditya\Desktop\ai\Rellis_3D_image_split")
     parser.add_argument("--weights-dir", type=str, default="weights", help="Directory to save checkpoint models")
     parser.add_argument("--amp", action="store_true", default=True, help="Use Automatic Mixed Precision (AMP)")
-    parser.add_argument("--use-aux", action="store_true", default=True, help="Use auxiliary booster heads during training")
+    parser.add_argument(
+        "--use-aux", action="store_true", default=True, help="Use auxiliary booster heads during training"
+    )
     args = parser.parse_args()
 
     print("=" * 70)
@@ -303,7 +308,7 @@ def main():
     else:
         device = torch.device("cuda")
         gpu_name = torch.cuda.get_device_name(0)
-        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         print(f"[OK] Hardware: {gpu_name} ({vram_gb:.2f} GB VRAM)")
         print(f"[OK] Acceleration: CUDA 12.1 + cuDNN + AMP ({'ENABLED' if args.amp else 'DISABLED'})")
 
@@ -321,7 +326,7 @@ def main():
     print(f"  * Train samples: {len(train_ds):,}")
     print(f"  * Val samples:   {len(val_ds):,}")
     print(f"  * Batch size:    {args.batch_size}")
-    print(f"  * Target Size:   1024 x 448 RGB")
+    print("  * Target Size:   1024 x 448 RGB")
 
     train_loader = DataLoader(
         train_ds,
@@ -347,7 +352,7 @@ def main():
     criterion = nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-5)
-    scaler = torch.amp.GradScaler('cuda') if args.amp else None
+    scaler = torch.amp.GradScaler("cuda") if args.amp else None
 
     # 4. Training Loop
     print("\n" + "=" * 70)
