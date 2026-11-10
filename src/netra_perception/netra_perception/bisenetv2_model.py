@@ -17,14 +17,16 @@ Reference:
   3 - RIGID_OBSTACLE:    Trees, rocks, poles, barriers, buildings, vehicles
 """
 
+from typing import Optional, Tuple, Union
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Union, Tuple, List, Optional
 
 
 class ConvBNReLU(nn.Module):
     """Convolution + BatchNorm2d + ReLU block."""
+
     def __init__(
         self,
         in_chan: int,
@@ -59,6 +61,7 @@ class DetailBranch(nn.Module):
     Detail Branch: Shallow, high-capacity path (3 stages, 1/8 spatial reduction)
     preserving rich spatial details (edges, boundaries, small obstacles).
     """
+
     def __init__(self):
         super().__init__()
         # Stage 1: 1/2 resolution, 64 channels
@@ -91,6 +94,7 @@ class StemBlock(nn.Module):
     Stem Block: Initial stage of Semantic Branch with two parallel downsampling
     paths to rapidly shrink spatial resolution while retaining context.
     """
+
     def __init__(self):
         super().__init__()
         self.conv_in = ConvBNReLU(3, 16, 3, stride=2, padding=1)
@@ -114,6 +118,7 @@ class GELayer(nn.Module):
     Gather-and-Expansion Layer (GE Layer):
     Inverted bottleneck with depthwise separable convolutions.
     """
+
     def __init__(self, in_chan: int, out_chan: int, exp_ratio: int = 6, stride: int = 1):
         super().__init__()
         mid_chan = in_chan * exp_ratio
@@ -159,6 +164,7 @@ class CEBlock(nn.Module):
     Context Embedding Block (CE Block):
     Global Average Pooling + Squeeze-and-Excitation context gating.
     """
+
     def __init__(self, in_chan: int = 128):
         super().__init__()
         self.gap = nn.AdaptiveAvgPool2d(1)
@@ -178,18 +184,19 @@ class SegmentBranch(nn.Module):
     """
     Semantic Branch: Deep, narrow path capturing high-level global context.
     """
+
     def __init__(self):
         super().__init__()
         self.S1_S2 = StemBlock()  # 1/4 resolution, 16 ch
-        self.S3 = nn.Sequential(   # 1/8 resolution, 32 ch
+        self.S3 = nn.Sequential(  # 1/8 resolution, 32 ch
             GELayer(16, 32, stride=2),
             GELayer(32, 32, stride=1),
         )
-        self.S4 = nn.Sequential(   # 1/16 resolution, 64 ch
+        self.S4 = nn.Sequential(  # 1/16 resolution, 64 ch
             GELayer(32, 64, stride=2),
             GELayer(64, 64, stride=1),
         )
-        self.S5 = nn.Sequential(   # 1/32 resolution, 128 ch
+        self.S5 = nn.Sequential(  # 1/32 resolution, 128 ch
             GELayer(64, 128, stride=2),
             GELayer(128, 128, stride=1),
             GELayer(128, 128, stride=1),
@@ -211,6 +218,7 @@ class BGALayer(nn.Module):
     Bilateral Guided Aggregation (BGA) Layer:
     Fuses Detail Branch (fine spatial edges) and Semantic Branch (global context).
     """
+
     def __init__(self):
         super().__init__()
         self.left1 = nn.Sequential(
@@ -239,11 +247,11 @@ class BGALayer(nn.Module):
         left1 = self.left1(x_d)
         left2 = self.left2(x_d)
         right1 = self.right1(x_s)
-        right1 = F.interpolate(right1, size=dsize, mode='bilinear', align_corners=False)
+        right1 = F.interpolate(right1, size=dsize, mode="bilinear", align_corners=False)
         right2 = self.right2(x_s)
         left = left1 * torch.sigmoid(right1)
         right = left2 * torch.sigmoid(right2)
-        right = F.interpolate(right, size=dsize, mode='bilinear', align_corners=False)
+        right = F.interpolate(right, size=dsize, mode="bilinear", align_corners=False)
         out = self.conv(left + right)
         return out
 
@@ -253,6 +261,7 @@ class SegmentHead(nn.Module):
     Segmentation prediction head:
     ConvBNReLU + Dropout + 1x1 Conv + Bilinear upsampling to target spatial resolution.
     """
+
     def __init__(self, in_chan: int, mid_chan: int, num_classes: int, scale_factor: int = 8):
         super().__init__()
         self.conv = ConvBNReLU(in_chan, mid_chan, 3, stride=1, padding=1)
@@ -265,9 +274,9 @@ class SegmentHead(nn.Module):
         feat = self.drop(feat)
         feat = self.conv_out(feat)
         if target_size is not None:
-            feat = F.interpolate(feat, size=target_size, mode='bilinear', align_corners=False)
+            feat = F.interpolate(feat, size=target_size, mode="bilinear", align_corners=False)
         elif self.scale_factor != 1:
-            feat = F.interpolate(feat, scale_factor=self.scale_factor, mode='bilinear', align_corners=False)
+            feat = F.interpolate(feat, scale_factor=self.scale_factor, mode="bilinear", align_corners=False)
         return feat
 
 
@@ -280,6 +289,7 @@ class BiSeNetV2(nn.Module):
         use_aux: If True, returns auxiliary booster head outputs during training.
                  During eval / export, only returns the primary segmentation map.
     """
+
     def __init__(self, num_classes: int = 4, use_aux: bool = False):
         super().__init__()
         self.num_classes = num_classes

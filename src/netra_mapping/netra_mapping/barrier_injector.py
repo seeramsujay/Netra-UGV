@@ -10,8 +10,10 @@ Reference: MASTER_PROJECT_REPORT.md §3.2
   Barrier placed at ditch front lip coordinates
 """
 
-import numpy as np
 from typing import List
+
+import numpy as np
+
 from netra_mapping.elevation_grid import ElevationGrid
 
 
@@ -47,8 +49,8 @@ class BarrierInjector:
                               (from NegativeObstacleVoid messages).
         """
         for obs in obstacle_points:
-            cx = obs.get('world_x', obs.get('x', 0.0))
-            cy = obs.get('world_y', obs.get('y', 0.0))
+            cx = obs.get("world_x", obs.get("x", 0.0))
+            cy = obs.get("world_y", obs.get("y", 0.0))
 
             # Set void flag on the center cell
             grid.set_void(cx, cy, True)
@@ -79,9 +81,7 @@ class BarrierInjector:
             edge_start_*:  Start point of ditch lip (meters, base_link frame).
             edge_end_*:    End point of ditch lip (meters, base_link frame).
         """
-        length = np.sqrt(
-            (edge_end_x - edge_start_x) ** 2 + (edge_end_y - edge_start_y) ** 2
-        )
+        length = np.sqrt((edge_end_x - edge_start_x) ** 2 + (edge_end_y - edge_start_y) ** 2)
         n_steps = max(2, int(length / self.resolution) + 1)
 
         for t in np.linspace(0.0, 1.0, n_steps):

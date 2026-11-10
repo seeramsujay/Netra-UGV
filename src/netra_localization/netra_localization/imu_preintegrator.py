@@ -13,20 +13,24 @@ Reference: MASTER_PROJECT_REPORT.md §3.3
   Sensor: TDK InvenSense ICM-42688-P (ultra-low noise 0.07°/√hr)
 """
 
-import numpy as np
-from typing import Optional, Tuple
 import logging
+from typing import Optional
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
 def skew_symmetric(v: np.ndarray) -> np.ndarray:
     """Compute the 3x3 skew-symmetric matrix [v]× from a 3-vector."""
-    return np.array([
-        [0, -v[2], v[1]],
-        [v[2], 0, -v[0]],
-        [-v[1], v[0], 0],
-    ], dtype=np.float64)
+    return np.array(
+        [
+            [0, -v[2], v[1]],
+            [v[2], 0, -v[0]],
+            [-v[1], v[0], 0],
+        ],
+        dtype=np.float64,
+    )
 
 
 def exp_so3(omega: np.ndarray) -> np.ndarray:
@@ -60,10 +64,10 @@ class IMUPreintegrator:
 
     def __init__(
         self,
-        gyro_noise_density: float = 1.2e-3,      # rad/s/√Hz
-        accel_noise_density: float = 8.0e-3,      # m/s²/√Hz
-        gyro_random_walk: float = 2.0e-5,         # rad/s²/√Hz
-        accel_random_walk: float = 3.0e-4,        # m/s³/√Hz
+        gyro_noise_density: float = 1.2e-3,  # rad/s/√Hz
+        accel_noise_density: float = 8.0e-3,  # m/s²/√Hz
+        gyro_random_walk: float = 2.0e-5,  # rad/s²/√Hz
+        accel_random_walk: float = 3.0e-4,  # m/s³/√Hz
     ):
         """
         Args:
@@ -78,21 +82,31 @@ class IMUPreintegrator:
         self.sigma_ba = accel_random_walk
 
         # Continuous-time noise covariance (Q_c)
-        self.Q_c = np.diag([
-            self.sigma_g ** 2, self.sigma_g ** 2, self.sigma_g ** 2,
-            self.sigma_a ** 2, self.sigma_a ** 2, self.sigma_a ** 2,
-            self.sigma_bg ** 2, self.sigma_bg ** 2, self.sigma_bg ** 2,
-            self.sigma_ba ** 2, self.sigma_ba ** 2, self.sigma_ba ** 2,
-        ])
+        self.Q_c = np.diag(
+            [
+                self.sigma_g**2,
+                self.sigma_g**2,
+                self.sigma_g**2,
+                self.sigma_a**2,
+                self.sigma_a**2,
+                self.sigma_a**2,
+                self.sigma_bg**2,
+                self.sigma_bg**2,
+                self.sigma_bg**2,
+                self.sigma_ba**2,
+                self.sigma_ba**2,
+                self.sigma_ba**2,
+            ]
+        )
 
         self.reset()
 
     def reset(self):
         """Reset pre-integration state for a new integration interval."""
-        self.delta_R = np.eye(3, dtype=np.float64)     # Rotation increment
-        self.delta_v = np.zeros(3, dtype=np.float64)    # Velocity increment
-        self.delta_p = np.zeros(3, dtype=np.float64)    # Position increment
-        self.delta_t = 0.0                              # Total time elapsed
+        self.delta_R = np.eye(3, dtype=np.float64)  # Rotation increment
+        self.delta_v = np.zeros(3, dtype=np.float64)  # Velocity increment
+        self.delta_p = np.zeros(3, dtype=np.float64)  # Position increment
+        self.delta_t = 0.0  # Total time elapsed
 
         # Covariance of the pre-integrated measurements
         self.covariance = np.zeros((15, 15), dtype=np.float64)
@@ -138,7 +152,6 @@ class IMUPreintegrator:
 
         # Midpoint integration for velocity and position
         acc_rotated = self.delta_R @ acc
-        acc_rotated_new = (self.delta_R @ dR) @ acc
 
         # Update pre-integrated values
         self.delta_p += self.delta_v * dt + 0.5 * acc_rotated * dt * dt
@@ -188,15 +201,15 @@ class IMUPreintegrator:
               num_measurements
         """
         return {
-            'delta_R': self.delta_R.copy(),
-            'delta_v': self.delta_v.copy(),
-            'delta_p': self.delta_p.copy(),
-            'delta_t': self.delta_t,
-            'covariance': self.covariance.copy(),
-            'J_R_bg': self.J_R_bg.copy(),
-            'J_v_bg': self.J_v_bg.copy(),
-            'J_v_ba': self.J_v_ba.copy(),
-            'J_p_bg': self.J_p_bg.copy(),
-            'J_p_ba': self.J_p_ba.copy(),
-            'num_measurements': self.num_measurements,
+            "delta_R": self.delta_R.copy(),
+            "delta_v": self.delta_v.copy(),
+            "delta_p": self.delta_p.copy(),
+            "delta_t": self.delta_t,
+            "covariance": self.covariance.copy(),
+            "J_R_bg": self.J_R_bg.copy(),
+            "J_v_bg": self.J_v_bg.copy(),
+            "J_v_ba": self.J_v_ba.copy(),
+            "J_p_bg": self.J_p_bg.copy(),
+            "J_p_ba": self.J_p_ba.copy(),
+            "num_measurements": self.num_measurements,
         }

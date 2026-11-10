@@ -16,6 +16,7 @@ CARLA is left-handed (x fwd, y right, z up) and uses degrees; ROS is ENU
 (x fwd, y left, z up) and radians. Everything crossing the boundary goes
 through the helpers below. Importing this module does not need `carla`.
 """
+
 import math
 import time
 
@@ -49,7 +50,7 @@ def decode_depth_bgra(raw, width, height):
     """CARLA 'sensor.camera.depth' BGRA bytes -> float32 metres (far plane 1000 m)."""
     a = np.frombuffer(raw, dtype=np.uint8).reshape(height, width, 4).astype(np.float32)
     b, g, r = a[..., 0], a[..., 1], a[..., 2]
-    return (r + g * 256.0 + b * 65536.0) / (256.0 ** 3 - 1.0) * 1000.0
+    return (r + g * 256.0 + b * 65536.0) / (256.0**3 - 1.0) * 1000.0
 
 
 class SpeedController:
@@ -62,12 +63,12 @@ class SpeedController:
     def step(self, v_cmd, v_meas, dt):
         if abs(v_cmd) < 0.02:
             self.integral = 0.0
-            return 0.0, 1.0, False                      # hold position
+            return 0.0, 1.0, False  # hold position
         direction = 1.0 if v_cmd > 0 else -1.0
-        speed = v_meas * direction                      # speed along the commanded direction
+        speed = v_meas * direction  # speed along the commanded direction
         if speed < -0.2:
             self.integral = 0.0
-            return 0.0, 1.0, direction < 0              # still rolling the wrong way: brake first
+            return 0.0, 1.0, direction < 0  # still rolling the wrong way: brake first
         err = abs(v_cmd) - speed
         if err >= 0.0:
             self.integral = min(self.i_max, self.integral + err * dt)
@@ -87,7 +88,7 @@ def steer_command(v_cmd, w_cmd, wheelbase, max_steer_rad):
         delta = math.copysign(max_steer_rad, w_cmd)
     else:
         delta = math.atan(wheelbase * w_cmd / v_cmd)
-    return max(-1.0, min(1.0, -delta / max_steer_rad))   # ROS +w is a left turn, CARLA +steer is right
+    return max(-1.0, min(1.0, -delta / max_steer_rad))  # ROS +w is a left turn, CARLA +steer is right
 
 
 def twist_to_commands(v_cmd, w_cmd, v_meas, ctrl, wheelbase, max_steer_rad, dt, min_turn_speed=0.8):
@@ -115,23 +116,25 @@ class SensorSelfCheck:
 
     def imu(self, accel_norm, gyro_z, gt_yaw_rate, gt_speed):
         self.seen += 1
-        if not self.gravity_checked and gt_speed < 0.05 and self.seen > 400:   # skip the spawn drop (~2 s)
+        if not self.gravity_checked and gt_speed < 0.05 and self.seen > 400:  # skip the spawn drop (~2 s)
             self.rest_samples.append(accel_norm)
             if len(self.rest_samples) >= 50:
-                mean = float(np.median(self.rest_samples))      # first samples after spawn are transients
+                mean = float(np.median(self.rest_samples))  # first samples after spawn are transients
                 if abs(mean - 9.81) > 2.0:
-                    self.log('IMU at rest reads |a| = %.2f m/s^2 (expected ~9.81): gravity is not in '
-                             'the accelerometer; set the imu_gravity parameter' % mean)
+                    self.log(
+                        "IMU at rest reads |a| = %.2f m/s^2 (expected ~9.81): gravity is not in "
+                        "the accelerometer; set the imu_gravity parameter" % mean
+                    )
                 else:
-                    self.log('IMU gravity check ok (|a| = %.2f m/s^2)' % mean)
+                    self.log("IMU gravity check ok (|a| = %.2f m/s^2)" % mean)
                 self.gravity_checked = True
         if not self.sign_checked and abs(gt_yaw_rate) > 0.2:
             self.sign_votes.append(gyro_z * gt_yaw_rate > 0)
             if len(self.sign_votes) >= 25:
                 if sum(self.sign_votes) < len(self.sign_votes) / 2:
-                    self.log('IMU gyro-z has the opposite sign to the vehicle yaw rate: frame conversion is wrong')
+                    self.log("IMU gyro-z has the opposite sign to the vehicle yaw rate: frame conversion is wrong")
                 else:
-                    self.log('IMU gyro sign check ok')
+                    self.log("IMU gyro sign check ok")
                 self.sign_checked = True
 
 
@@ -139,43 +142,47 @@ class SensorSelfCheck:
 # Backends
 # --------------------------------------------------------------------------
 
+
 class RemoteBackend:
     """Same interface as CarlaBackend, served by carla_sidecar over localhost."""
 
     def __init__(self, cfg, port, connect_timeout_s=30.0):
         import socket
+
         self.cfg = cfg
         deadline = time.monotonic() + connect_timeout_s
         while True:
             try:
-                self.sock = socket.create_connection(('127.0.0.1', port), timeout=5.0)
+                self.sock = socket.create_connection(("127.0.0.1", port), timeout=5.0)
                 break
             except OSError:
                 if time.monotonic() > deadline:
-                    raise RuntimeError('carla_sidecar not reachable on 127.0.0.1:%d' % port)
+                    raise RuntimeError("carla_sidecar not reachable on 127.0.0.1:%d" % port)
                 time.sleep(0.5)
-        self.sock.settimeout(120.0)           # a step includes physics + rendering
+        self.sock.settimeout(120.0)  # a step includes physics + rendering
 
     def _call(self, *req):
         from netra_sim.carla_sidecar import recv_msg, send_msg
+
         send_msg(self.sock, req)
         reply = recv_msg(self.sock)
         if reply is None:
-            raise RuntimeError('carla_sidecar closed the connection')
-        if reply[0] != 'ok':
+            raise RuntimeError("carla_sidecar closed the connection")
+        if reply[0] != "ok":
             raise RuntimeError(reply[1])
         return reply[1]
 
     def open(self):
-        return self._call('open', self.cfg)
+        return self._call("open", self.cfg)
 
     def step(self, throttle, steer, brake, reverse):
-        return self._call('step', (throttle, steer, brake, reverse))
+        return self._call("step", (throttle, steer, brake, reverse))
 
     def close(self):
         from netra_sim.carla_sidecar import send_msg
+
         try:
-            send_msg(self.sock, ('close',))
+            send_msg(self.sock, ("close",))
             self.sock.close()
         except OSError:
             pass
@@ -184,6 +191,7 @@ class RemoteBackend:
 # --------------------------------------------------------------------------
 # ROS node
 # --------------------------------------------------------------------------
+
 
 def main(args=None):
     import rclpy
@@ -200,32 +208,30 @@ def main(args=None):
 
     class CarlaBridge(Node):
         def __init__(self):
-            super().__init__('carla_bridge')
+            super().__init__("carla_bridge")
             for key, default in DEFAULTS.items():
                 # rclpy cannot infer the type of an empty list; spawn=[] means "use spawn_index"
-                self.declare_parameter(key, [0.0] if key == 'spawn' else default)
-            self.declare_parameter('backend', 'inprocess')       # 'inprocess' | 'sidecar'
-            self.declare_parameter('sidecar_port', 5555)
-            self.declare_parameter('cmd_timeout_s', 0.5)
-            self.declare_parameter('anchor_to_scenario_start', True)
+                self.declare_parameter(key, [0.0] if key == "spawn" else default)
+            self.declare_parameter("backend", "inprocess")  # 'inprocess' | 'sidecar'
+            self.declare_parameter("sidecar_port", 5555)
+            self.declare_parameter("cmd_timeout_s", 0.5)
+            self.declare_parameter("anchor_to_scenario_start", True)
 
-            g = lambda k: self.get_parameter(k).value             # noqa: E731
+            g = lambda k: self.get_parameter(k).value  # noqa: E731
             self.cfg = {k: g(k) for k in DEFAULTS}
-            self.dt = self.cfg['fixed_delta_s']
-            self.cmd_timeout = g('cmd_timeout_s')
-            self.anchor = g('anchor_to_scenario_start')
-            self.width, self.height, self.fx = (self.cfg['image_width'], self.cfg['image_height'],
-                                                self.cfg['fx'])
+            self.dt = self.cfg["fixed_delta_s"]
+            self.cmd_timeout = g("cmd_timeout_s")
+            self.anchor = g("anchor_to_scenario_start")
+            self.width, self.height, self.fx = (self.cfg["image_width"], self.cfg["image_height"], self.cfg["fx"])
 
-            sensor_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT,
-                                    history=HistoryPolicy.KEEP_LAST, depth=1)
-            self.clock_pub = self.create_publisher(Clock, '/clock', 10)
-            self.image_pub = self.create_publisher(Image, '/camera/image_raw', sensor_qos)
-            self.depth_pub = self.create_publisher(Image, '/camera/depth_image', sensor_qos)
-            self.info_pub = self.create_publisher(CameraInfo, '/camera/camera_info', sensor_qos)
-            self.imu_pub = self.create_publisher(Imu, '/imu/data', sensor_qos)
-            self.odom_pub = self.create_publisher(Odometry, '/odom_ground_truth', 10)
-            self.create_subscription(Twist, '/cmd_vel', self._on_cmd, 10)
+            sensor_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=1)
+            self.clock_pub = self.create_publisher(Clock, "/clock", 10)
+            self.image_pub = self.create_publisher(Image, "/camera/image_raw", sensor_qos)
+            self.depth_pub = self.create_publisher(Image, "/camera/depth_image", sensor_qos)
+            self.info_pub = self.create_publisher(CameraInfo, "/camera/camera_info", sensor_qos)
+            self.imu_pub = self.create_publisher(Imu, "/imu/data", sensor_qos)
+            self.odom_pub = self.create_publisher(Odometry, "/odom_ground_truth", 10)
+            self.create_subscription(Twist, "/cmd_vel", self._on_cmd, 10)
 
             self.cmd, self.cmd_time = (0.0, 0.0), None
             self.ctrl = SpeedController()
@@ -234,19 +240,21 @@ def main(args=None):
             self.speed_fwd = 0.0
             self.backend = None
             try:
-                if g('backend') == 'sidecar':
-                    self.backend = RemoteBackend(self.cfg, g('sidecar_port'))
+                if g("backend") == "sidecar":
+                    self.backend = RemoteBackend(self.cfg, g("sidecar_port"))
                 else:
                     self.backend = CarlaBackend(self.cfg)
                 info = self.backend.open()
             except Exception:
-                self.shutdown()                  # never leave the server stuck in synchronous mode
+                self.shutdown()  # never leave the server stuck in synchronous mode
                 raise
-            self.wheelbase, self.max_steer = info['wheelbase'], info['max_steer_rad']
-            self.get_logger().info('CARLA %s, map %s, vehicle %s, wheelbase %.2f m' % (
-                info['server_version'], info['map'], info['vehicle'], self.wheelbase))
-            if not info.get('gravity_api', True):
-                self.get_logger().info('this CARLA version has no IMU gravity switch; relying on the self-check')
+            self.wheelbase, self.max_steer = info["wheelbase"], info["max_steer_rad"]
+            self.get_logger().info(
+                "CARLA %s, map %s, vehicle %s, wheelbase %.2f m"
+                % (info["server_version"], info["map"], info["vehicle"], self.wheelbase)
+            )
+            if not info.get("gravity_api", True):
+                self.get_logger().info("this CARLA version has no IMU gravity switch; relying on the self-check")
             self.spawn_pose = None
 
         def _on_cmd(self, msg):
@@ -257,33 +265,34 @@ def main(args=None):
             stale = self.cmd_time is None or time.monotonic() - self.cmd_time > self.cmd_timeout
             v_cmd, w_cmd = (0.0, 0.0) if stale else self.cmd
             throttle, steer, brake, reverse = twist_to_commands(
-                v_cmd, w_cmd, self.speed_fwd, self.ctrl, self.wheelbase, self.max_steer, self.dt)
+                v_cmd, w_cmd, self.speed_fwd, self.ctrl, self.wheelbase, self.max_steer, self.dt
+            )
             d = self.backend.step(throttle, steer, brake, reverse)
 
-            sim_t = d['sim_t']
+            sim_t = d["sim_t"]
             clock = Clock()
             clock.clock.sec, clock.clock.nanosec = stamp(sim_t)
             self.clock_pub.publish(clock)
 
-            lx, ly, lz, roll, pitch, yaw = d['transform']
+            lx, ly, lz, roll, pitch, yaw = d["transform"]
             rpy = carla_rotation_to_rpy(roll, pitch, yaw)
             x, y, z = carla_to_ros_position(lx, ly, lz)
             if self.spawn_pose is None:
                 self.spawn_pose = (x, y, rpy[2])
-                self.get_logger().info('spawned at (%.1f, %.1f, yaw %.2f rad)' % self.spawn_pose)
-            vx, vy, vz = carla_to_ros_position(*d['velocity'])
+                self.get_logger().info("spawned at (%.1f, %.1f, yaw %.2f rad)" % self.spawn_pose)
+            vx, vy, vz = carla_to_ros_position(*d["velocity"])
             self.speed_fwd = vx * math.cos(rpy[2]) + vy * math.sin(rpy[2])
 
-            quat = self._publish_odom(sim_t, (x, y, z), rpy, (vx, vy, vz), d['angular_velocity'])
-            self._publish_imu(d['imu'], sim_t, rpy, quat)
-            if d['rgb'] is not None:
-                t, w, h, raw = d['rgb']
+            quat = self._publish_odom(sim_t, (x, y, z), rpy, (vx, vy, vz), d["angular_velocity"])
+            self._publish_imu(d["imu"], sim_t, rpy, quat)
+            if d["rgb"] is not None:
+                t, w, h, raw = d["rgb"]
                 bgr = np.frombuffer(raw, dtype=np.uint8).reshape(h, w, 4)[..., :3]
-                self._publish_image(self.image_pub, t, bgr, 'bgr8', 3)
+                self._publish_image(self.image_pub, t, bgr, "bgr8", 3)
                 self._publish_info(t, w, h)
-            if d['depth'] is not None:
-                t, w, h, raw = d['depth']
-                self._publish_image(self.depth_pub, t, decode_depth_bgra(raw, w, h), '32FC1', 4)
+            if d["depth"] is not None:
+                t, w, h, raw = d["depth"]
+                self._publish_image(self.depth_pub, t, decode_depth_bgra(raw, w, h), "32FC1", 4)
 
         def _publish_odom(self, sim_t, pos, rpy, vel_ros, ang_vel):
             x, y, z = pos
@@ -293,11 +302,11 @@ def main(args=None):
             qx, qy, qz, qw = rpy_to_quaternion(rpy[0], rpy[1], yaw)
             msg = Odometry()
             msg.header.stamp.sec, msg.header.stamp.nanosec = stamp(sim_t)
-            msg.header.frame_id, msg.child_frame_id = 'odom', 'base_footprint'
+            msg.header.frame_id, msg.child_frame_id = "odom", "base_footprint"
             p = msg.pose.pose
             p.position.x, p.position.y, p.position.z = x, y, z
             p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w = qx, qy, qz, qw
-            c, s = math.cos(rpy[2]), math.sin(rpy[2])          # body-frame velocities (REP-105)
+            c, s = math.cos(rpy[2]), math.sin(rpy[2])  # body-frame velocities (REP-105)
             msg.twist.twist.linear.x = vel_ros[0] * c + vel_ros[1] * s
             msg.twist.twist.linear.y = -vel_ros[0] * s + vel_ros[1] * c
             msg.twist.twist.linear.z = vel_ros[2]
@@ -310,7 +319,7 @@ def main(args=None):
             for _, t, a, w in samples:
                 msg = Imu()
                 msg.header.stamp.sec, msg.header.stamp.nanosec = stamp(t)
-                msg.header.frame_id = 'imu_link'
+                msg.header.frame_id = "imu_link"
                 msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z = a[0], -a[1], a[2]
                 gx, gy, gz = carla_to_ros_vector_axial(*w)
                 msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z = gx, gy, gz
@@ -330,7 +339,7 @@ def main(args=None):
         def _publish_image(self, pub, t, array, encoding, bytes_per_px):
             msg = Image()
             msg.header.stamp.sec, msg.header.stamp.nanosec = stamp(t)
-            msg.header.frame_id = 'camera_optical_frame'
+            msg.header.frame_id = "camera_optical_frame"
             msg.height, msg.width = array.shape[0], array.shape[1]
             msg.encoding, msg.is_bigendian = encoding, 0
             msg.step = msg.width * bytes_per_px
@@ -340,9 +349,9 @@ def main(args=None):
         def _publish_info(self, t, w, h):
             msg = CameraInfo()
             msg.header.stamp.sec, msg.header.stamp.nanosec = stamp(t)
-            msg.header.frame_id = 'camera_optical_frame'
+            msg.header.frame_id = "camera_optical_frame"
             msg.width, msg.height = w, h
-            msg.distortion_model = 'plumb_bob'
+            msg.distortion_model = "plumb_bob"
             msg.d = [0.0] * 5
             f, cx, cy = self.fx, w / 2.0, h / 2.0
             msg.k = [f, 0.0, cx, 0.0, f, cy, 0.0, 0.0, 1.0]
@@ -372,5 +381,5 @@ def main(args=None):
             rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

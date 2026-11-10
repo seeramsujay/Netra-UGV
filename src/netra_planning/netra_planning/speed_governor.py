@@ -17,9 +17,10 @@ Reference:
   MASTER_PROJECT_REPORT.md §4 & TECHNICAL_ARCHITECTURE.md §5.4
 """
 
-import numpy as np
 import logging
-from typing import Dict, Any, Optional, Tuple
+from typing import Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +48,10 @@ class SpeedGovernor:
         v_brush_cap: float = 0.5,
         v_mud_cap: float = 0.4,
         v_degraded_cap: float = 0.8,
-        slope_threshold_rad: float = 0.20,   # ~11.5 degrees
-        slope_critical_rad: float = 0.35,    # ~20.0 degrees
-        roughness_threshold: float = 0.04,   # elevation variance m^2
-        deceleration_limit: float = 1.0,     # m/s^2 controlled deceleration
+        slope_threshold_rad: float = 0.20,  # ~11.5 degrees
+        slope_critical_rad: float = 0.35,  # ~20.0 degrees
+        roughness_threshold: float = 0.04,  # elevation variance m^2
+        deceleration_limit: float = 1.0,  # m/s^2 controlled deceleration
     ):
         self.v_nominal_max = v_nominal_max
         self.v_brush_cap = v_brush_cap

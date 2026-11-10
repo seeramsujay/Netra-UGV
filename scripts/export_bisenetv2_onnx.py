@@ -12,14 +12,15 @@ Usage:
     python scripts/export_bisenetv2_onnx.py [OPTIONS]
 """
 
+import argparse
 import os
 import sys
-import argparse
 import time
+
 import numpy as np
-import torch
 import onnx
 import onnxruntime as ort
+import torch
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PERCEPTION_PKG = os.path.join(PROJECT_ROOT, "src", "netra_perception", "netra_perception")
@@ -30,8 +31,8 @@ from bisenetv2_model import BiSeNetV2
 
 if sys.platform == "win32":
     try:
-        sys.stdout.reconfigure(encoding='utf-8')
-        sys.stderr.reconfigure(encoding='utf-8')
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
         pass
 
@@ -77,8 +78,8 @@ def export_and_verify(
 
     print(f"\n[EXPORT] Exporting to ONNX: {output_onnx_path}")
     print(f"  * Input Shape:  [Batch=1, Channels=3, Height={input_h}, Width={input_w}]")
-    print(f"  * Input Name:   input_rgb")
-    print(f"  * Output Name:  output_mask")
+    print("  * Input Name:   input_rgb")
+    print("  * Output Name:  output_mask")
     print(f"  * Opset:        {opset}")
 
     torch.onnx.export(
@@ -103,7 +104,11 @@ def export_and_verify(
 
     # 4. Numerically compare PyTorch vs ONNX Runtime inference
     print("\n[NUMERICAL TEST] Running cross-backend numerical equivalence test...")
-    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if "CUDAExecutionProvider" in ort.get_available_providers() else ["CPUExecutionProvider"]
+    providers = (
+        ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        if "CUDAExecutionProvider" in ort.get_available_providers()
+        else ["CPUExecutionProvider"]
+    )
     ort_session = ort.InferenceSession(output_onnx_path, providers=providers)
 
     np_input = dummy_input.numpy()
@@ -135,7 +140,9 @@ def export_and_verify(
     if max_diff < 1e-4:
         print("[OK] PyTorch and ONNX Runtime predictions match within precision tolerance (< 1e-4).")
     else:
-        print(f"[WARN] Maximum difference ({max_diff}) is slightly elevated, but acceptable for floating-point aggregation.")
+        print(
+            f"[WARN] Maximum difference ({max_diff}) is slightly elevated, but acceptable for floating-point aggregation."
+        )
 
     print("\n" + "=" * 70)
     print(f"[SUCCESS] ONNX Model Ready: {output_onnx_path}")

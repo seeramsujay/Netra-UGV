@@ -2,6 +2,7 @@
 
 Run from anywhere:  python3 sim/webots/gen_world.py
 """
+
 import os
 import sys
 
@@ -10,14 +11,12 @@ sys.path.insert(0, os.path.dirname(HERE))
 from netra_sim import scenario as sc  # noqa: E402
 
 PROTO = "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects"
-BASIC_TIME_STEP_MS = 16   # controller steps at the same period (see netra_ugv.py)
+BASIC_TIME_STEP_MS = 16  # controller steps at the same period (see netra_ugv.py)
 
 grid = sc.height_grid()
 rocks = sc.build_rocks()
 
-rows = "\n".join(
-    "        " + " ".join("%.3f" % v for v in grid[j * sc.NX:(j + 1) * sc.NX])
-    for j in range(sc.NY))
+rows = "\n".join("        " + " ".join("%.3f" % v for v in grid[j * sc.NX : (j + 1) * sc.NX]) for j in range(sc.NY))
 
 out = [
     "#VRML_SIM R2025a utf8",
@@ -26,30 +25,32 @@ out = [
     'EXTERNPROTO "%s/robots/adept/pioneer3/protos/Pioneer3at.proto"' % PROTO,
     "",
     "WorldInfo {\n  basicTimeStep %d\n}" % BASIC_TIME_STEP_MS,
-    'Viewpoint {\n  orientation -0.25 0.25 0.93 1.6\n  position -34 -30 22\n'
+    "Viewpoint {\n  orientation -0.25 0.25 0.93 1.6\n  position -34 -30 22\n"
     '  follow "Netra UGV"\n  followType "Mounted Shot"\n}',
     "TexturedBackground {}\nTexturedBackgroundLight {}",
     # The terrain translation is the grid corner; an ElevationGrid spans 0..(N-1)*SP.
     'Solid {\n  name "terrain"\n  translation %.3f %.3f 0\n  children [ Shape {\n'
-    '    appearance PBRAppearance { baseColor 0.55 0.47 0.33 roughness 1 metalness 0 }\n'
-    '    geometry DEF TERRAIN ElevationGrid {\n      xDimension %d\n      xSpacing %g\n'
-    '      yDimension %d\n      ySpacing %g\n      height [\n%s\n      ]\n    }\n  } ]\n'
-    '  boundingObject USE TERRAIN\n}' % (sc.X0, sc.Y0, sc.NX, sc.SP, sc.NY, sc.SP, rows),
+    "    appearance PBRAppearance { baseColor 0.55 0.47 0.33 roughness 1 metalness 0 }\n"
+    "    geometry DEF TERRAIN ElevationGrid {\n      xDimension %d\n      xSpacing %g\n"
+    "      yDimension %d\n      ySpacing %g\n      height [\n%s\n      ]\n    }\n  } ]\n"
+    "  boundingObject USE TERRAIN\n}" % (sc.X0, sc.Y0, sc.NX, sc.SP, sc.NY, sc.SP, rows),
 ]
 
 for i, r in enumerate(rocks):
     lx, ly, lz = r.dims
     out.append(
         'Solid {\n  name "rock%d"\n  translation %.2f %.2f %.2f\n  rotation 0 0 1 %.2f\n'
-        '  children [ Shape { appearance PBRAppearance { baseColor 0.4 0.4 0.42 roughness 1 metalness 0 }'
-        ' geometry DEF R%d Box { size %.2f %.2f %.2f } } ]\n  boundingObject USE R%d\n}'
-        % (i, r.x, r.y, sc.ground_z(r.x, r.y, grid) + r.size * 0.4, r.yaw, i, lx, ly, lz, i))
+        "  children [ Shape { appearance PBRAppearance { baseColor 0.4 0.4 0.42 roughness 1 metalness 0 }"
+        " geometry DEF R%d Box { size %.2f %.2f %.2f } } ]\n  boundingObject USE R%d\n}"
+        % (i, r.x, r.y, sc.ground_z(r.x, r.y, grid) + r.size * 0.4, r.yaw, i, lx, ly, lz, i)
+    )
 
 out.append(
     'Solid {\n  name "goal marker"\n  translation %g %g %.2f\n'
-    '  children [ Shape { appearance PBRAppearance { baseColor 1 0.85 0.1 emissiveColor 0.6 0.5 0 }'
-    ' geometry Cylinder { height 0.05 radius 0.8 } } ]\n}'
-    % (sc.GOAL[0], sc.GOAL[1], sc.ground_z(*sc.GOAL, grid) + 0.03))
+    "  children [ Shape { appearance PBRAppearance { baseColor 1 0.85 0.1 emissiveColor 0.6 0.5 0 }"
+    " geometry Cylinder { height 0.05 radius 0.8 } } ]\n}"
+    % (sc.GOAL[0], sc.GOAL[1], sc.ground_z(*sc.GOAL, grid) + 0.03)
+)
 
 sx, sy, syaw = sc.START
 out.append("""Pioneer3at {

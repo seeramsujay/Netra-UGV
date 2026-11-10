@@ -13,23 +13,22 @@ Reference: TECHNICAL_ARCHITECTURE.md §3 (Node Interaction Diagram)
   Frequency: 15 Hz semantic inference, up to 50 Hz v-disparity
 """
 
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-
-from sensor_msgs.msg import Image, Imu
-from netra_msgs.msg import TerrainClassification, NegativeObstacleVoid
-
-import numpy as np
-import cv2
+import logging
 import math
 import time
-import logging
 
-from netra_perception.horizon_roi_crop import HorizonROICropper
-from netra_perception.bisenetv2_inference import BiSeNetV2Inference
-from netra_perception.vdisparity_detector import VDisparityDetector
+import cv2
+import numpy as np
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+from sensor_msgs.msg import Image, Imu
+
+from netra_msgs.msg import NegativeObstacleVoid, TerrainClassification
 from netra_perception.bayesian_filter import BayesianVoidFilter
+from netra_perception.bisenetv2_inference import BiSeNetV2Inference
+from netra_perception.horizon_roi_crop import HorizonROICropper
+from netra_perception.vdisparity_detector import VDisparityDetector
 
 logger = logging.getLogger(__name__)
 
@@ -49,37 +48,37 @@ class PerceptionNode(Node):
     """
 
     def __init__(self):
-        super().__init__('perception_node')
+        super().__init__("perception_node")
 
         # --- Declare Parameters ---
-        self.declare_parameter('simulation_mode', True)
-        self.declare_parameter('tensorrt_engine_path', '')
-        self.declare_parameter('onnx_model_path', '')
-        self.declare_parameter('camera_focal_y', 500.0)
-        self.declare_parameter('camera_cy', 360.0)
-        self.declare_parameter('image_height', 720)
-        self.declare_parameter('image_width', 1280)
-        self.declare_parameter('horizon_margin_px', 50)
-        self.declare_parameter('chassis_crop_px', 40)
-        self.declare_parameter('stereo_baseline_m', 0.075)
-        self.declare_parameter('max_disparity', 128)
-        self.declare_parameter('bayesian_threshold', 3.5)
-        self.declare_parameter('inference_rate_hz', 15.0)
+        self.declare_parameter("simulation_mode", True)
+        self.declare_parameter("tensorrt_engine_path", "")
+        self.declare_parameter("onnx_model_path", "")
+        self.declare_parameter("camera_focal_y", 500.0)
+        self.declare_parameter("camera_cy", 360.0)
+        self.declare_parameter("image_height", 720)
+        self.declare_parameter("image_width", 1280)
+        self.declare_parameter("horizon_margin_px", 50)
+        self.declare_parameter("chassis_crop_px", 40)
+        self.declare_parameter("stereo_baseline_m", 0.075)
+        self.declare_parameter("max_disparity", 128)
+        self.declare_parameter("bayesian_threshold", 3.5)
+        self.declare_parameter("inference_rate_hz", 15.0)
 
         # --- Load Parameters ---
-        self.sim_mode = self.get_parameter('simulation_mode').value
-        engine_path = self.get_parameter('tensorrt_engine_path').value
-        onnx_path = self.get_parameter('onnx_model_path').value
-        f_y = self.get_parameter('camera_focal_y').value
-        c_y = self.get_parameter('camera_cy').value
-        img_h = self.get_parameter('image_height').value
-        img_w = self.get_parameter('image_width').value
-        horizon_margin = self.get_parameter('horizon_margin_px').value
-        chassis_crop = self.get_parameter('chassis_crop_px').value
-        baseline = self.get_parameter('stereo_baseline_m').value
-        max_disp = self.get_parameter('max_disparity').value
-        bayesian_thresh = self.get_parameter('bayesian_threshold').value
-        inference_rate = self.get_parameter('inference_rate_hz').value
+        self.sim_mode = self.get_parameter("simulation_mode").value
+        engine_path = self.get_parameter("tensorrt_engine_path").value
+        onnx_path = self.get_parameter("onnx_model_path").value
+        f_y = self.get_parameter("camera_focal_y").value
+        c_y = self.get_parameter("camera_cy").value
+        img_h = self.get_parameter("image_height").value
+        img_w = self.get_parameter("image_width").value
+        horizon_margin = self.get_parameter("horizon_margin_px").value
+        chassis_crop = self.get_parameter("chassis_crop_px").value
+        baseline = self.get_parameter("stereo_baseline_m").value
+        max_disp = self.get_parameter("max_disparity").value
+        bayesian_thresh = self.get_parameter("bayesian_threshold").value
+        inference_rate = self.get_parameter("inference_rate_hz").value
 
         # --- Initialize Pipeline Components ---
         self.roi_cropper = HorizonROICropper(
@@ -129,29 +128,43 @@ class PerceptionNode(Node):
 
         # --- Subscribers ---
         self.image_sub = self.create_subscription(
-            Image, '/camera/image_raw', self._on_image, sensor_qos,
+            Image,
+            "/camera/image_raw",
+            self._on_image,
+            sensor_qos,
         )
 
         self.disparity_sub = self.create_subscription(
-            Image, '/stereo/disparity', self._on_disparity, sensor_qos,
+            Image,
+            "/stereo/disparity",
+            self._on_disparity,
+            sensor_qos,
         )
 
         self.imu_sub = self.create_subscription(
-            Imu, '/imu/data', self._on_imu, sensor_qos,
+            Imu,
+            "/imu/data",
+            self._on_imu,
+            sensor_qos,
         )
 
         # --- Publishers ---
         self.terrain_pub = self.create_publisher(
-            TerrainClassification, '/netra/terrain_classification', reliable_qos,
+            TerrainClassification,
+            "/netra/terrain_classification",
+            reliable_qos,
         )
 
         self.obstacle_pub = self.create_publisher(
-            NegativeObstacleVoid, '/netra/negative_obstacle', reliable_qos,
+            NegativeObstacleVoid,
+            "/netra/negative_obstacle",
+            reliable_qos,
         )
 
         # --- Inference Timer ---
         self.inference_timer = self.create_timer(
-            1.0 / inference_rate, self._inference_callback,
+            1.0 / inference_rate,
+            self._inference_callback,
         )
 
         self.get_logger().info(
@@ -159,7 +172,7 @@ class PerceptionNode(Node):
             f"[backend={self.segmenter.backend}, provider={getattr(self.segmenter, 'active_provider', 'N/A')}, "
             f"resolution={self.segmenter.input_w}x{self.segmenter.input_h}, sim={self.sim_mode}]"
         )
-        if getattr(self.segmenter, 'cuda_fallback_warning', False):
+        if getattr(self.segmenter, "cuda_fallback_warning", False):
             self.get_logger().warn(
                 "CUDAExecutionProvider was available but session initialized with CPUExecutionProvider! "
                 "Ensure CUDA 12 and cuDNN DLLs are in system PATH."
@@ -177,16 +190,12 @@ class PerceptionNode(Node):
         """Cache the latest camera frame for processing."""
         try:
             # Decode image from ROS message
-            if msg.encoding in ('bgr8', 'rgb8'):
-                img = np.frombuffer(msg.data, dtype=np.uint8).reshape(
-                    msg.height, msg.width, 3
-                )
-                if msg.encoding == 'rgb8':
+            if msg.encoding in ("bgr8", "rgb8"):
+                img = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, 3)
+                if msg.encoding == "rgb8":
                     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-            elif msg.encoding == 'mono8':
-                gray = np.frombuffer(msg.data, dtype=np.uint8).reshape(
-                    msg.height, msg.width
-                )
+            elif msg.encoding == "mono8":
+                gray = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width)
                 img = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
             else:
                 self.get_logger().warn(f"Unsupported encoding: {msg.encoding}")
@@ -198,18 +207,14 @@ class PerceptionNode(Node):
     def _on_disparity(self, msg: Image):
         """Cache the latest stereo disparity map."""
         try:
-            if msg.encoding == '32FC1':
-                self.last_disparity = np.frombuffer(
-                    msg.data, dtype=np.float32
-                ).reshape(msg.height, msg.width)
-            elif msg.encoding == 'mono8':
-                self.last_disparity = np.frombuffer(
-                    msg.data, dtype=np.uint8
-                ).reshape(msg.height, msg.width).astype(np.float32)
-            else:
-                self.get_logger().warn(
-                    f"Unsupported disparity encoding: {msg.encoding}"
+            if msg.encoding == "32FC1":
+                self.last_disparity = np.frombuffer(msg.data, dtype=np.float32).reshape(msg.height, msg.width)
+            elif msg.encoding == "mono8":
+                self.last_disparity = (
+                    np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width).astype(np.float32)
                 )
+            else:
+                self.get_logger().warn(f"Unsupported disparity encoding: {msg.encoding}")
         except Exception as e:
             self.get_logger().error(f"Disparity decode error: {e}")
 
@@ -234,25 +239,21 @@ class PerceptionNode(Node):
         elapsed_ms = (time.monotonic() - t_start) * 1000.0
 
         if self.frame_count % 50 == 0:
-            self.get_logger().info(
-                f"Perception frame #{self.frame_count}: {elapsed_ms:.1f} ms"
-            )
+            self.get_logger().info(f"Perception frame #{self.frame_count}: {elapsed_ms:.1f} ms")
 
     def _run_segmentation_pipeline(self):
         """Execute terrain segmentation: ROI crop → inference → publish."""
         # Step 1: Dynamic horizon ROI crop
-        cropped, row_start, row_end = self.roi_cropper.crop(
-            self.last_image, self.current_pitch_rad
-        )
+        cropped, row_start, row_end = self.roi_cropper.crop(self.last_image, self.current_pitch_rad)
 
         # Step 2: BiSeNetV2 inference
         mask, confidence = self.segmenter.infer(cropped)
 
         # Periodic logging of inference metrics (every 15 frames ≈ 1 sec at 15 Hz)
         if self.frame_count % 15 == 0:
-            latency = getattr(self.segmenter, 'last_latency_ms', 0.0)
-            dist_str = getattr(self.segmenter, 'last_dist_str', 'N/A')
-            provider = getattr(self.segmenter, 'active_provider', self.segmenter.backend)
+            latency = getattr(self.segmenter, "last_latency_ms", 0.0)
+            dist_str = getattr(self.segmenter, "last_dist_str", "N/A")
+            provider = getattr(self.segmenter, "active_provider", self.segmenter.backend)
             self.get_logger().info(
                 f"[BiSeNetV2 AI] Latency: {latency:.1f} ms | Provider: {provider} | "
                 f"Dist: [{dist_str}] | Conf: {confidence:.2f}"
@@ -261,7 +262,7 @@ class PerceptionNode(Node):
         # Step 3: Publish TerrainClassification
         msg = TerrainClassification()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'camera_link'
+        msg.header.frame_id = "camera_link"
         msg.semantic_mask = mask.flatten().tolist()
         msg.width = mask.shape[1]
         msg.height = mask.shape[0]
@@ -272,9 +273,7 @@ class PerceptionNode(Node):
     def _run_vdisparity_pipeline(self):
         """Execute negative obstacle detection: v-disparity → Bayesian → publish."""
         # Step 1: v-Disparity negative obstacle detection
-        detections = self.vdisparity.detect_negative_obstacles(
-            self.last_disparity
-        )
+        detections = self.vdisparity.detect_negative_obstacles(self.last_disparity)
 
         # Step 2: Bayesian temporal confirmation
         confirmed = self.bayesian.update(detections)
@@ -283,17 +282,17 @@ class PerceptionNode(Node):
         for barrier in confirmed:
             msg = NegativeObstacleVoid()
             msg.header.stamp = self.get_clock().now().to_msg()
-            msg.header.frame_id = 'base_link'
+            msg.header.frame_id = "base_link"
             msg.hazard_detected = True
-            msg.edge_start_point.x = barrier['world_x']
-            msg.edge_start_point.y = barrier['world_y'] - 0.5
+            msg.edge_start_point.x = barrier["world_x"]
+            msg.edge_start_point.y = barrier["world_y"] - 0.5
             msg.edge_start_point.z = 0.0
-            msg.edge_end_point.x = barrier['world_x']
-            msg.edge_end_point.y = barrier['world_y'] + 0.5
+            msg.edge_end_point.x = barrier["world_x"]
+            msg.edge_end_point.y = barrier["world_y"] + 0.5
             msg.edge_end_point.z = 0.0
             msg.estimated_drop_depth = 0.5  # Conservative
-            msg.bayesian_log_odds = barrier['log_odds']
-            msg.consecutive_frame_hits = barrier['consecutive_hits']
+            msg.bayesian_log_odds = barrier["log_odds"]
+            msg.consecutive_frame_hits = barrier["consecutive_hits"]
 
             self.obstacle_pub.publish(msg)
 
@@ -301,7 +300,7 @@ class PerceptionNode(Node):
         if not confirmed:
             msg = NegativeObstacleVoid()
             msg.header.stamp = self.get_clock().now().to_msg()
-            msg.header.frame_id = 'base_link'
+            msg.header.frame_id = "base_link"
             msg.hazard_detected = False
             msg.bayesian_log_odds = 0.0
             msg.consecutive_frame_hits = 0
@@ -320,5 +319,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
