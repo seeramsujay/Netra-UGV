@@ -10,20 +10,21 @@ Usage:
     python scripts/verify_rellis_dataset.py [OPTIONS]
 """
 
+import argparse
 import os
 import sys
-import argparse
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
 from collections import Counter
-from typing import Dict, List, Tuple
+from typing import Dict
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Ensure Windows terminal handles UTF-8 cleanly
 if sys.platform == "win32":
     try:
-        sys.stdout.reconfigure(encoding='utf-8')
-        sys.stderr.reconfigure(encoding='utf-8')
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
         pass
 
@@ -58,26 +59,26 @@ RELLIS_RAW_NAMES = {
 # 3 = RIGID_OBSTACLE
 # 255 = IGNORE (void, sky, unannotated)
 LABEL_MAPPING = {
-    0: 255,   # void -> IGNORE
-    7: 255,   # sky -> IGNORE
-    1: 0,     # dirt -> SOLID_GROUND
-    10: 0,    # asphalt -> SOLID_GROUND
-    23: 0,    # concrete -> SOLID_GROUND
-    3: 1,     # grass -> PLIANT_VEGETATION
-    19: 1,    # bush -> PLIANT_VEGETATION
-    6: 2,     # water -> MUD_HAZARD
-    31: 2,    # puddle -> MUD_HAZARD
-    33: 2,    # mud -> MUD_HAZARD
-    4: 3,     # tree -> RIGID_OBSTACLE
-    5: 3,     # pole -> RIGID_OBSTACLE
-    8: 3,     # vehicle -> RIGID_OBSTACLE
-    9: 3,     # object -> RIGID_OBSTACLE
-    12: 3,    # building -> RIGID_OBSTACLE
-    15: 3,    # log -> RIGID_OBSTACLE
-    17: 3,    # person -> RIGID_OBSTACLE
-    18: 3,    # fence -> RIGID_OBSTACLE
-    27: 3,    # barrier -> RIGID_OBSTACLE
-    34: 3,    # rubble -> RIGID_OBSTACLE
+    0: 255,  # void -> IGNORE
+    7: 255,  # sky -> IGNORE
+    1: 0,  # dirt -> SOLID_GROUND
+    10: 0,  # asphalt -> SOLID_GROUND
+    23: 0,  # concrete -> SOLID_GROUND
+    3: 1,  # grass -> PLIANT_VEGETATION
+    19: 1,  # bush -> PLIANT_VEGETATION
+    6: 2,  # water -> MUD_HAZARD
+    31: 2,  # puddle -> MUD_HAZARD
+    33: 2,  # mud -> MUD_HAZARD
+    4: 3,  # tree -> RIGID_OBSTACLE
+    5: 3,  # pole -> RIGID_OBSTACLE
+    8: 3,  # vehicle -> RIGID_OBSTACLE
+    9: 3,  # object -> RIGID_OBSTACLE
+    12: 3,  # building -> RIGID_OBSTACLE
+    15: 3,  # log -> RIGID_OBSTACLE
+    17: 3,  # person -> RIGID_OBSTACLE
+    18: 3,  # fence -> RIGID_OBSTACLE
+    27: 3,  # barrier -> RIGID_OBSTACLE
+    34: 3,  # rubble -> RIGID_OBSTACLE
 }
 
 NETRA_CLASS_NAMES = {
@@ -95,11 +96,11 @@ NETRA_CLASS_NAMES = {
 # 3 = Obstacle/Red (231, 76, 60)
 # 255 = Dark Grey (40, 40, 40)
 NETRA_COLORMAP = np.zeros((256, 3), dtype=np.uint8)
-NETRA_COLORMAP[0] = [180, 140, 90]    # SOLID_GROUND (Warm dirt)
-NETRA_COLORMAP[1] = [46, 204, 113]    # PLIANT_VEGETATION (Vibrant green)
-NETRA_COLORMAP[2] = [230, 126, 34]    # MUD_HAZARD (Orange/Mud)
-NETRA_COLORMAP[3] = [231, 76, 60]     # RIGID_OBSTACLE (Lethal red)
-NETRA_COLORMAP[255] = [30, 30, 30]    # IGNORE (Dark grey)
+NETRA_COLORMAP[0] = [180, 140, 90]  # SOLID_GROUND (Warm dirt)
+NETRA_COLORMAP[1] = [46, 204, 113]  # PLIANT_VEGETATION (Vibrant green)
+NETRA_COLORMAP[2] = [230, 126, 34]  # MUD_HAZARD (Orange/Mud)
+NETRA_COLORMAP[3] = [231, 76, 60]  # RIGID_OBSTACLE (Lethal red)
+NETRA_COLORMAP[255] = [30, 30, 30]  # IGNORE (Dark grey)
 
 # Build fast 256-element lookup table for raw -> 4-class conversion
 LUT_CONVERT = np.full(256, 255, dtype=np.uint8)
@@ -207,7 +208,9 @@ def verify_dataset(
     print("\n" + "-" * 70)
     print(f"[SUMMARY] {total_matched:,} pairs matched across train, val, and test.")
     if total_missing_imgs > 0 or total_missing_lbls > 0:
-        raise RuntimeError(f"Dataset integrity check failed: missing {total_missing_imgs} images, {total_missing_lbls} masks.")
+        raise RuntimeError(
+            f"Dataset integrity check failed: missing {total_missing_imgs} images, {total_missing_lbls} masks."
+        )
 
     # 3. Label distribution scan
     print("\n[SCAN] Scanning Label Distribution across Train + Val masks...")
@@ -242,7 +245,9 @@ def verify_dataset(
         target_cls = LABEL_MAPPING.get(rid, 255)
         target_name = NETRA_CLASS_NAMES.get(target_cls, "UNKNOWN")
         px = raw_counter[rid]
-        print(f"  * Raw ID {rid:2d} ({name:12s}) -> Target: {target_cls} ({target_name:18s}) | Sampled Pixels: {px:11,d}")
+        print(
+            f"  * Raw ID {rid:2d} ({name:12s}) -> Target: {target_cls} ({target_name:18s}) | Sampled Pixels: {px:11,d}"
+        )
 
     print("\n[Converted NETRA 4-Class Distribution]:", sorted(list(netra_ids_found)))
     total_px = sum(netra_counter.values())
@@ -283,11 +288,10 @@ def verify_dataset(
 
         # Overlay blend (alpha = 0.55 image + 0.45 mask)
         # Only blend labeled pixels, keep ignore pixels as clean image
-        mask_valid = (netra_mask != 255)
+        mask_valid = netra_mask != 255
         blend = rgb_resized.copy()
         blend[mask_valid] = (
-            0.50 * rgb_resized[mask_valid].astype(np.float32) +
-            0.50 * netra_color[mask_valid].astype(np.float32)
+            0.50 * rgb_resized[mask_valid].astype(np.float32) + 0.50 * netra_color[mask_valid].astype(np.float32)
         ).astype(np.uint8)
 
         # Plot column 1: RGB

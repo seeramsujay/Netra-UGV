@@ -4,22 +4,22 @@ File: weights/scripts/calibrate_int8.py
 Reference: docs/WEIGHTS_AND_MODELS_GUIDE.md §3, Step 2
 """
 
-import os
 import glob
-import numpy as np
+import os
+
 import cv2
+import numpy as np
 
 try:
-    import tensorrt as trt
     import pycuda.driver as cuda
-    import pycuda.autoinit
+    import tensorrt as trt
 
     class RELLISEntropyCalibrator(trt.IInt8EntropyCalibrator2):
         def __init__(self, calib_images_dir: str, cache_file: str, batch_size: int = 8):
             super().__init__()
             self.cache_file = cache_file
             self.batch_size = batch_size
-            self.image_files = glob.glob(os.path.join(calib_images_dir, '*.jpg'))[:200]
+            self.image_files = glob.glob(os.path.join(calib_images_dir, "*.jpg"))[:200]
             self.current_index = 0
 
             # Allocate CUDA memory for batch: [B, 3, 448, 1024]

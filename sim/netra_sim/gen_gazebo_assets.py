@@ -10,6 +10,7 @@ Writes, relative to sim/:
 The terrain mesh uses the same 126 x 91 grid as the Webots ElevationGrid, so
 ditch edges, hills and boulder placement are identical across simulators.
 """
+
 import math
 import os
 import sys
@@ -20,7 +21,7 @@ from netra_sim import scenario as sc  # noqa: E402
 
 SIM_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORLD_NAME = "netra_tactical_field"
-APRON = 50.0          # flat surround out to +-50 m so the horizon is not a cliff
+APRON = 50.0  # flat surround out to +-50 m so the horizon is not a cliff
 APRON_THICKNESS = 1.0
 
 
@@ -110,9 +111,14 @@ def apron_boxes():
 
 def box_model(name, pose, size, rgba, collide=True):
     sx, sy, sz = size
-    col = ("<collision name=\"c\"><geometry><box><size>%.3f %.3f %.3f</size></box></geometry>"
-           "<surface><friction><ode><mu>0.9</mu><mu2>0.9</mu2></ode></friction></surface></collision>"
-           % (sx, sy, sz)) if collide else ""
+    col = (
+        (
+            '<collision name="c"><geometry><box><size>%.3f %.3f %.3f</size></box></geometry>'
+            "<surface><friction><ode><mu>0.9</mu><mu2>0.9</mu2></ode></friction></surface></collision>" % (sx, sy, sz)
+        )
+        if collide
+        else ""
+    )
     return """    <model name="%s">
       <static>true</static>
       <pose>%s</pose>
@@ -168,14 +174,16 @@ def build_world(grid, rocks):
 
     aprons, t = apron_boxes()
     for name, cx, cy, sx, sy in aprons:
-        parts.append(box_model(name, "%.3f %.3f %.3f 0 0 0" % (cx, cy, -t / 2),
-                               (sx, sy, t), "0.40 0.35 0.25 1"))
+        parts.append(box_model(name, "%.3f %.3f %.3f 0 0 0" % (cx, cy, -t / 2), (sx, sy, t), "0.40 0.35 0.25 1"))
 
     for i, r in enumerate(rocks):
         lx, ly, lz = r.dims
         z = sc.ground_z(r.x, r.y, grid) + r.size * 0.4
-        parts.append(box_model("rock_%02d" % i, "%.3f %.3f %.3f 0 0 %.3f" % (r.x, r.y, z, r.yaw),
-                               (lx, ly, lz), "0.40 0.40 0.42 1"))
+        parts.append(
+            box_model(
+                "rock_%02d" % i, "%.3f %.3f %.3f 0 0 %.3f" % (r.x, r.y, z, r.yaw), (lx, ly, lz), "0.40 0.40 0.42 1"
+            )
+        )
 
     # visual-only mission markers (no collision)
     gx, gy = sc.GOAL

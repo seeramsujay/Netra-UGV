@@ -16,9 +16,10 @@ Reference: MASTER_PROJECT_REPORT.md §3.3, TECHNICAL_ARCHITECTURE.md §3
   Drift: < 1.2% over 500m in GPS blackout
 """
 
-import numpy as np
-from typing import List, Optional, Dict, Tuple
 import logging
+from typing import List, Optional, Tuple
+
+import numpy as np
 
 from netra_localization.imu_preintegrator import exp_so3, skew_symmetric
 
@@ -28,11 +29,14 @@ logger = logging.getLogger(__name__)
 def quaternion_to_rotation(q: np.ndarray) -> np.ndarray:
     """Convert quaternion [w, x, y, z] to 3x3 rotation matrix."""
     w, x, y, z = q
-    return np.array([
-        [1 - 2*(y*y + z*z), 2*(x*y - w*z),     2*(x*z + w*y)],
-        [2*(x*y + w*z),     1 - 2*(x*x + z*z), 2*(y*z - w*x)],
-        [2*(x*z - w*y),     2*(y*z + w*x),     1 - 2*(x*x + y*y)],
-    ], dtype=np.float64)
+    return np.array(
+        [
+            [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+            [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+            [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+        ],
+        dtype=np.float64,
+    )
 
 
 def rotation_to_quaternion(R: np.ndarray) -> np.ndarray:
@@ -40,28 +44,24 @@ def rotation_to_quaternion(R: np.ndarray) -> np.ndarray:
     tr = np.trace(R)
     if tr > 0:
         s = 2.0 * np.sqrt(tr + 1.0)
-        return np.array([s / 4.0, (R[2, 1] - R[1, 2]) / s,
-                         (R[0, 2] - R[2, 0]) / s, (R[1, 0] - R[0, 1]) / s])
+        return np.array([s / 4.0, (R[2, 1] - R[1, 2]) / s, (R[0, 2] - R[2, 0]) / s, (R[1, 0] - R[0, 1]) / s])
     elif R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
         s = 2.0 * np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2])
-        return np.array([(R[2, 1] - R[1, 2]) / s, s / 4.0,
-                         (R[0, 1] + R[1, 0]) / s, (R[0, 2] + R[2, 0]) / s])
+        return np.array([(R[2, 1] - R[1, 2]) / s, s / 4.0, (R[0, 1] + R[1, 0]) / s, (R[0, 2] + R[2, 0]) / s])
     elif R[1, 1] > R[2, 2]:
         s = 2.0 * np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2])
-        return np.array([(R[0, 2] - R[2, 0]) / s, (R[0, 1] + R[1, 0]) / s,
-                         s / 4.0, (R[1, 2] + R[2, 1]) / s])
+        return np.array([(R[0, 2] - R[2, 0]) / s, (R[0, 1] + R[1, 0]) / s, s / 4.0, (R[1, 2] + R[2, 1]) / s])
     else:
         s = 2.0 * np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1])
-        return np.array([(R[1, 0] - R[0, 1]) / s, (R[0, 2] + R[2, 0]) / s,
-                         (R[1, 2] + R[2, 1]) / s, s / 4.0])
+        return np.array([(R[1, 0] - R[0, 1]) / s, (R[0, 2] + R[2, 0]) / s, (R[1, 2] + R[2, 1]) / s, s / 4.0])
 
 
 class CameraClone:
     """A camera pose clone in the sliding window."""
 
     def __init__(self, rotation: np.ndarray, position: np.ndarray, timestamp: float):
-        self.R = rotation.copy()   # 3x3 rotation matrix (world → camera)
-        self.p = position.copy()   # 3-vector position in world frame
+        self.R = rotation.copy()  # 3x3 rotation matrix (world → camera)
+        self.p = position.copy()  # 3-vector position in world frame
         self.timestamp = timestamp
 
 
@@ -103,11 +103,14 @@ class MSCKFEstimator:
 
         # Camera intrinsics (default: approximate OAK-D)
         if camera_intrinsics is None:
-            self.K = np.array([
-                [500.0, 0.0, 640.0],
-                [0.0, 500.0, 360.0],
-                [0.0, 0.0, 1.0],
-            ], dtype=np.float64)
+            self.K = np.array(
+                [
+                    [500.0, 0.0, 640.0],
+                    [0.0, 500.0, 360.0],
+                    [0.0, 0.0, 1.0],
+                ],
+                dtype=np.float64,
+            )
         else:
             self.K = camera_intrinsics.astype(np.float64)
 
@@ -163,10 +166,10 @@ class MSCKFEstimator:
             # Auto-initialize with identity orientation
             self.initialize(np.eye(3), np.zeros(3), np.zeros(3))
 
-        dR = preintegrated['delta_R']
-        dv = preintegrated['delta_v']
-        dp = preintegrated['delta_p']
-        dt = preintegrated['delta_t']
+        dR = preintegrated["delta_R"]
+        dv = preintegrated["delta_v"]
+        dp = preintegrated["delta_p"]
+        dt = preintegrated["delta_t"]
 
         if dt <= 0:
             return
@@ -186,7 +189,7 @@ class MSCKFEstimator:
         F[6:9, 9:12] = -R_prev * dt  # Simplified
 
         # Process noise
-        Q = preintegrated['covariance'][:self.IMU_STATE_DIM, :self.IMU_STATE_DIM]
+        Q = preintegrated["covariance"][: self.IMU_STATE_DIM, : self.IMU_STATE_DIM]
 
         # Propagate only the IMU block of P
         imu_dim = self.IMU_STATE_DIM
@@ -197,10 +200,9 @@ class MSCKFEstimator:
         n_clones = len(self.clones)
         if n_clones > 0:
             clone_dim = n_clones * self.CLONE_STATE_DIM
-            P_ic = self.P[:imu_dim, imu_dim:imu_dim + clone_dim]
-            self.P[:imu_dim, imu_dim:imu_dim + clone_dim] = F @ P_ic
-            self.P[imu_dim:imu_dim + clone_dim, :imu_dim] = \
-                self.P[:imu_dim, imu_dim:imu_dim + clone_dim].T
+            P_ic = self.P[:imu_dim, imu_dim : imu_dim + clone_dim]
+            self.P[:imu_dim, imu_dim : imu_dim + clone_dim] = F @ P_ic
+            self.P[imu_dim : imu_dim + clone_dim, :imu_dim] = self.P[:imu_dim, imu_dim : imu_dim + clone_dim].T
 
     def augment_state(self, timestamp: float):
         """
@@ -225,14 +227,14 @@ class MSCKFEstimator:
         # Jacobian of clone state w.r.t. IMU state
         J = np.zeros((self.CLONE_STATE_DIM, self.IMU_STATE_DIM), dtype=np.float64)
         J[0:3, 0:3] = self.R_cam_imu  # ∂θ_cam / ∂θ_imu
-        J[3:6, 3:6] = np.eye(3)        # ∂p_cam / ∂p_imu
+        J[3:6, 3:6] = np.eye(3)  # ∂p_cam / ∂p_imu
 
         # Clone-IMU cross-covariance
-        P_new[old_dim:, :self.IMU_STATE_DIM] = J @ self.P[:self.IMU_STATE_DIM, :self.IMU_STATE_DIM]
-        P_new[:self.IMU_STATE_DIM, old_dim:] = P_new[old_dim:, :self.IMU_STATE_DIM].T
+        P_new[old_dim:, : self.IMU_STATE_DIM] = J @ self.P[: self.IMU_STATE_DIM, : self.IMU_STATE_DIM]
+        P_new[: self.IMU_STATE_DIM, old_dim:] = P_new[old_dim:, : self.IMU_STATE_DIM].T
 
         # Clone self-covariance
-        P_new[old_dim:, old_dim:] = J @ self.P[:self.IMU_STATE_DIM, :self.IMU_STATE_DIM] @ J.T
+        P_new[old_dim:, old_dim:] = J @ self.P[: self.IMU_STATE_DIM, : self.IMU_STATE_DIM] @ J.T
 
         self.P = P_new
 
@@ -282,9 +284,7 @@ class MSCKFEstimator:
                 continue
 
             # Build residual and Jacobian for this feature
-            H_f, r_f = self._compute_residual(
-                p_w, observations, clone_indices, K
-            )
+            H_f, r_f = self._compute_residual(p_w, observations, clone_indices, K)
 
             if H_f is not None and r_f is not None:
                 H_total.append(H_f)
@@ -298,7 +298,7 @@ class MSCKFEstimator:
         r = np.concatenate(r_total)
 
         # Measurement noise
-        R_noise = np.eye(len(r)) * (self.pixel_noise ** 2)
+        R_noise = np.eye(len(r)) * (self.pixel_noise**2)
 
         # EKF update
         S = H @ self.P @ H.T + R_noise
@@ -393,10 +393,12 @@ class MSCKFEstimator:
 
             # Jacobian w.r.t. camera pose (6-dim) — simplified
             # Full derivation omitted for brevity; using first-order approximation
-            J_proj = np.array([
-                [K[0, 0] / p_cam[2], 0, -K[0, 0] * p_cam[0] / p_cam[2]**2],
-                [0, K[1, 1] / p_cam[2], -K[1, 1] * p_cam[1] / p_cam[2]**2],
-            ])
+            J_proj = np.array(
+                [
+                    [K[0, 0] / p_cam[2], 0, -K[0, 0] * p_cam[0] / p_cam[2] ** 2],
+                    [0, K[1, 1] / p_cam[2], -K[1, 1] * p_cam[1] / p_cam[2] ** 2],
+                ]
+            )
 
             # ∂p_cam/∂θ_cam = [p_cam]×, ∂p_cam/∂p_cam = -R
             H_theta = J_proj @ skew_symmetric(p_cam)
@@ -411,7 +413,7 @@ class MSCKFEstimator:
             H_xi = np.zeros((2, state_dim))
             clone_start = self.IMU_STATE_DIM + ci * self.CLONE_STATE_DIM
             if clone_start + self.CLONE_STATE_DIM <= state_dim:
-                H_xi[:, clone_start:clone_start + self.CLONE_STATE_DIM] = H_clone
+                H_xi[:, clone_start : clone_start + self.CLONE_STATE_DIM] = H_clone
 
             H_x_list.append(H_xi)
             H_f_list.append(H_feature)
@@ -455,8 +457,8 @@ class MSCKFEstimator:
         for i, clone in enumerate(self.clones):
             idx = self.IMU_STATE_DIM + i * self.CLONE_STATE_DIM
             if idx + self.CLONE_STATE_DIM <= len(delta_x):
-                d_theta_c = delta_x[idx:idx + 3]
-                d_pos_c = delta_x[idx + 3:idx + 6]
+                d_theta_c = delta_x[idx : idx + 3]
+                d_pos_c = delta_x[idx + 3 : idx + 6]
                 clone.R = exp_so3(d_theta_c) @ clone.R
                 clone.p += d_pos_c
 

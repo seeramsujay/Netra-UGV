@@ -17,9 +17,10 @@ Log-odds update rule:
 Barrier committed when: L_t(x,y) >= L_threshold = 3.5
 """
 
-import numpy as np
 import logging
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +35,14 @@ class BayesianVoidFilter:
     """
 
     # Default configuration
-    DEFAULT_GRID_SIZE = 100          # 100x100 cells
-    DEFAULT_RESOLUTION = 0.1        # 0.1 m per cell → 10m x 10m coverage
-    DEFAULT_THRESHOLD = 3.5         # Log-odds threshold for commitment
-    DEFAULT_PRIOR = 0.01            # Prior probability of void P(Void)
-    DEFAULT_DETECTION_PROB = 0.85   # P(Void | D_t) when detector fires
-    DEFAULT_FALSE_ALARM_PROB = 0.05 # P(Void | D_t) when detector does NOT fire
-    DEFAULT_DECAY_RATE = 0.1        # Log-odds decay per frame (forgetting factor)
-    MIN_CONSECUTIVE_HITS = 3        # Minimum consecutive frame detections
+    DEFAULT_GRID_SIZE = 100  # 100x100 cells
+    DEFAULT_RESOLUTION = 0.1  # 0.1 m per cell → 10m x 10m coverage
+    DEFAULT_THRESHOLD = 3.5  # Log-odds threshold for commitment
+    DEFAULT_PRIOR = 0.01  # Prior probability of void P(Void)
+    DEFAULT_DETECTION_PROB = 0.85  # P(Void | D_t) when detector fires
+    DEFAULT_FALSE_ALARM_PROB = 0.05  # P(Void | D_t) when detector does NOT fire
+    DEFAULT_DECAY_RATE = 0.1  # Log-odds decay per frame (forgetting factor)
+    MIN_CONSECUTIVE_HITS = 3  # Minimum consecutive frame detections
 
     def __init__(
         self,
@@ -74,14 +75,10 @@ class BayesianVoidFilter:
         self.l_free = self._prob_to_log_odds(false_alarm_prob)
 
         # Log-odds grid (initialized to prior)
-        self.log_odds_grid = np.full(
-            (grid_size, grid_size), self.l_prior, dtype=np.float32
-        )
+        self.log_odds_grid = np.full((grid_size, grid_size), self.l_prior, dtype=np.float32)
 
         # Consecutive hit counter per cell
-        self.consecutive_hits = np.zeros(
-            (grid_size, grid_size), dtype=np.int32
-        )
+        self.consecutive_hits = np.zeros((grid_size, grid_size), dtype=np.int32)
 
         # Grid origin in world frame (updated by odometry)
         self.origin_x = -grid_size * resolution / 2.0
@@ -94,9 +91,9 @@ class BayesianVoidFilter:
         return float(np.log(p / (1.0 - p)))
 
     @staticmethod
-    def _log_odds_to_prob(l: float) -> float:
+    def _log_odds_to_prob(log_odds: float) -> float:
         """Convert log-odds to probability: p = 1 / (1 + exp(-L))."""
-        return float(1.0 / (1.0 + np.exp(-l)))
+        return float(1.0 / (1.0 + np.exp(-log_odds)))
 
     def world_to_grid(self, x: float, y: float) -> Optional[Tuple[int, int]]:
         """
@@ -147,10 +144,10 @@ class BayesianVoidFilter:
         for det in detections:
             # Project detection depth to world coordinates
             # Detection is in front of the vehicle at det['depth_m'] distance
-            world_x = vehicle_x + det['depth_m']
+            world_x = vehicle_x + det["depth_m"]
             # Spread across the column range (approximate lateral extent)
-            col_range = det['col_end'] - det['col_start']
-            lateral_extent = det['depth_m'] * col_range / 1000.0  # approximate
+            col_range = det["col_end"] - det["col_start"]
+            lateral_extent = det["depth_m"] * col_range / 1000.0  # approximate
 
             for dy_offset in np.linspace(-lateral_extent / 2, lateral_extent / 2, 5):
                 world_y = vehicle_y + dy_offset
@@ -168,44 +165,41 @@ class BayesianVoidFilter:
 
         # --- Bayesian Update ---
         # Cells with void detection: increase log-odds
-        self.log_odds_grid[detected] += (self.l_detection - self.l_prior)
+        self.log_odds_grid[detected] += self.l_detection - self.l_prior
         self.consecutive_hits[detected] += 1
 
         # Observed cells without detection: decrease log-odds
         clear = observed & ~detected
-        self.log_odds_grid[clear] += (self.l_free - self.l_prior)
+        self.log_odds_grid[clear] += self.l_free - self.l_prior
         self.consecutive_hits[clear] = 0
 
         # Unobserved cells: decay toward prior
         unobserved = ~observed
         self.log_odds_grid[unobserved] -= self.decay_rate
-        self.log_odds_grid[unobserved] = np.maximum(
-            self.log_odds_grid[unobserved], self.l_prior
-        )
+        self.log_odds_grid[unobserved] = np.maximum(self.log_odds_grid[unobserved], self.l_prior)
 
         # Clamp log-odds to prevent numerical overflow
         self.log_odds_grid = np.clip(self.log_odds_grid, -10.0, 15.0)
 
         # --- Extract Confirmed Barriers ---
         confirmed = []
-        committed = (self.log_odds_grid >= self.threshold) & \
-                    (self.consecutive_hits >= self.MIN_CONSECUTIVE_HITS)
+        committed = (self.log_odds_grid >= self.threshold) & (self.consecutive_hits >= self.MIN_CONSECUTIVE_HITS)
 
         barrier_cells = np.argwhere(committed)
         for row, col in barrier_cells:
             world_x = self.origin_x + col * self.resolution
             world_y = self.origin_y + row * self.resolution
-            confirmed.append({
-                'grid_row': int(row),
-                'grid_col': int(col),
-                'world_x': world_x,
-                'world_y': world_y,
-                'log_odds': float(self.log_odds_grid[row, col]),
-                'probability': self._log_odds_to_prob(
-                    self.log_odds_grid[row, col]
-                ),
-                'consecutive_hits': int(self.consecutive_hits[row, col]),
-            })
+            confirmed.append(
+                {
+                    "grid_row": int(row),
+                    "grid_col": int(col),
+                    "world_x": world_x,
+                    "world_y": world_y,
+                    "log_odds": float(self.log_odds_grid[row, col]),
+                    "probability": self._log_odds_to_prob(self.log_odds_grid[row, col]),
+                    "consecutive_hits": int(self.consecutive_hits[row, col]),
+                }
+            )
 
         return confirmed
 

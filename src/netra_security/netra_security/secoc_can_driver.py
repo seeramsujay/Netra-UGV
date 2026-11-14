@@ -12,18 +12,18 @@ Reference: MASTER_PROJECT_REPORT.md §1.4, TECHNICAL_ARCHITECTURE.md §4.4
   Frequency: 50 Hz dispatch rate
 """
 
+import logging
+import struct
+
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 
-from netra_msgs.msg import SecuredTwist, FailsafeState
+from netra_msgs.msg import FailsafeState, SecuredTwist
 from netra_security.crypto_utils import (
     load_secoc_key,
     verify_secoc_payload,
 )
-
-import struct
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -41,19 +41,19 @@ class SecOCCanDriver(Node):
     """
 
     def __init__(self):
-        super().__init__('secoc_can_driver')
+        super().__init__("secoc_can_driver")
 
         # --- Parameters ---
-        self.declare_parameter('simulation_mode', True)
-        self.declare_parameter('secoc_key_path', '')
-        self.declare_parameter('can_bus_interface', 'can0')
-        self.declare_parameter('can_arbitration_id', 0x100)
-        self.declare_parameter('dispatch_rate_hz', 50.0)
+        self.declare_parameter("simulation_mode", True)
+        self.declare_parameter("secoc_key_path", "")
+        self.declare_parameter("can_bus_interface", "can0")
+        self.declare_parameter("can_arbitration_id", 0x100)
+        self.declare_parameter("dispatch_rate_hz", 50.0)
 
-        self.simulation_mode = self.get_parameter('simulation_mode').value
-        key_path = self.get_parameter('secoc_key_path').value or None
-        self.can_interface = self.get_parameter('can_bus_interface').value
-        self.can_arb_id = self.get_parameter('can_arbitration_id').value
+        self.simulation_mode = self.get_parameter("simulation_mode").value
+        key_path = self.get_parameter("secoc_key_path").value or None
+        self.can_interface = self.get_parameter("can_bus_interface").value
+        self.can_arb_id = self.get_parameter("can_arbitration_id").value
 
         # --- Load SecOC Key ---
         self.secoc_key = load_secoc_key(key_path)
@@ -64,19 +64,15 @@ class SecOCCanDriver(Node):
         if not self.simulation_mode:
             try:
                 import can
+
                 self.can_bus = can.interface.Bus(
                     channel=self.can_interface,
-                    bustype='socketcan',
+                    bustype="socketcan",
                     fd=True,
                 )
-                self.get_logger().info(
-                    f"CAN-FD bus opened on {self.can_interface}"
-                )
+                self.get_logger().info(f"CAN-FD bus opened on {self.can_interface}")
             except Exception as e:
-                self.get_logger().error(
-                    f"Failed to open CAN-FD bus: {e}. "
-                    "Falling back to simulation mode."
-                )
+                self.get_logger().error(f"Failed to open CAN-FD bus: {e}. " "Falling back to simulation mode.")
                 self.simulation_mode = True
 
         # --- Failsafe State ---
@@ -91,14 +87,14 @@ class SecOCCanDriver(Node):
 
         self.cmd_sub = self.create_subscription(
             SecuredTwist,
-            '/cmd_vel_secured',
+            "/cmd_vel_secured",
             self._on_secured_twist,
             qos_reliable,
         )
 
         self.failsafe_sub = self.create_subscription(
             FailsafeState,
-            '/netra/failsafe_state',
+            "/netra/failsafe_state",
             self._on_failsafe_state,
             qos_reliable,
         )
@@ -108,8 +104,7 @@ class SecOCCanDriver(Node):
         self.frames_rejected = 0
 
         self.get_logger().info(
-            f"SecOC CAN-FD driver initialized "
-            f"[sim={self.simulation_mode}, arb_id=0x{self.can_arb_id:03X}]"
+            f"SecOC CAN-FD driver initialized " f"[sim={self.simulation_mode}, arb_id=0x{self.can_arb_id:03X}]"
         )
 
     def _on_failsafe_state(self, msg: FailsafeState):
@@ -128,8 +123,7 @@ class SecOCCanDriver(Node):
         # --- Level 3 Tamper Lockout ---
         if self.current_failsafe_mode == FailsafeState.MODE_SECURITY_TAMPER:
             self.get_logger().error(
-                "TAMPER LOCKOUT: All actuation commands rejected. "
-                "System is in zeroization state."
+                "TAMPER LOCKOUT: All actuation commands rejected. " "System is in zeroization state."
             )
             return
 
@@ -147,9 +141,7 @@ class SecOCCanDriver(Node):
 
         if not is_valid:
             self.frames_rejected += 1
-            self.get_logger().warn(
-                f"SecOC frame REJECTED (total rejected: {self.frames_rejected})"
-            )
+            self.get_logger().warn(f"SecOC frame REJECTED (total rejected: {self.frames_rejected})")
             return
 
         # --- Update anti-replay counter ---
@@ -180,8 +172,8 @@ class SecOCCanDriver(Node):
         import can
 
         payload = (
-            struct.pack('>ff', msg.linear_velocity_x, msg.angular_velocity_z)
-            + struct.pack('>I', msg.freshness_counter)
+            struct.pack(">ff", msg.linear_velocity_x, msg.angular_velocity_z)
+            + struct.pack(">I", msg.freshness_counter)
             + bytes(msg.aes_cmac)
         )
 
@@ -217,5 +209,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

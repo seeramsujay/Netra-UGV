@@ -19,15 +19,15 @@ In simulation mode, tamper events are triggered via a ROS 2 service call
 for testing the failsafe state machine.
 """
 
+import logging
+import time
+
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool
-from netra_msgs.msg import FailsafeState
 
-import time
-import logging
+from netra_msgs.msg import FailsafeState
 
 logger = logging.getLogger(__name__)
 
@@ -52,21 +52,21 @@ class TamperMonitor(Node):
     MONITOR_RATE_HZ = 10.0
 
     def __init__(self):
-        super().__init__('tamper_monitor')
+        super().__init__("tamper_monitor")
 
         # --- Parameters ---
-        self.declare_parameter('simulation_mode', True)
-        self.declare_parameter('tamper_gpio_pin', 17)
-        self.declare_parameter('photodiode_gpio_pin', 27)
-        self.declare_parameter('geofence_enabled', False)
-        self.declare_parameter('zeroization_timeout_ms', 85.0)
-        self.declare_parameter('heartbeat_timeout_s', 5.0)
+        self.declare_parameter("simulation_mode", True)
+        self.declare_parameter("tamper_gpio_pin", 17)
+        self.declare_parameter("photodiode_gpio_pin", 27)
+        self.declare_parameter("geofence_enabled", False)
+        self.declare_parameter("zeroization_timeout_ms", 85.0)
+        self.declare_parameter("heartbeat_timeout_s", 5.0)
 
-        self.simulation_mode = self.get_parameter('simulation_mode').value
-        self.tamper_pin = self.get_parameter('tamper_gpio_pin').value
-        self.photo_pin = self.get_parameter('photodiode_gpio_pin').value
-        self.geofence_enabled = self.get_parameter('geofence_enabled').value
-        self.zero_timeout_ms = self.get_parameter('zeroization_timeout_ms').value
+        self.simulation_mode = self.get_parameter("simulation_mode").value
+        self.tamper_pin = self.get_parameter("tamper_gpio_pin").value
+        self.photo_pin = self.get_parameter("photodiode_gpio_pin").value
+        self.geofence_enabled = self.get_parameter("geofence_enabled").value
+        self.zero_timeout_ms = self.get_parameter("zeroization_timeout_ms").value
 
         # --- State ---
         self.tamper_detected = False
@@ -78,15 +78,14 @@ class TamperMonitor(Node):
         if not self.simulation_mode:
             try:
                 import RPi.GPIO as GPIO
+
                 self.gpio = GPIO
                 GPIO.setmode(GPIO.BCM)
                 GPIO.setup(self.tamper_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
                 GPIO.setup(self.photo_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
                 self.get_logger().info("GPIO tamper lines initialized.")
             except ImportError:
-                self.get_logger().warn(
-                    "RPi.GPIO not available. Running in simulation mode."
-                )
+                self.get_logger().warn("RPi.GPIO not available. Running in simulation mode.")
                 self.simulation_mode = True
 
         # --- Publishers ---
@@ -98,20 +97,20 @@ class TamperMonitor(Node):
 
         self.failsafe_pub = self.create_publisher(
             FailsafeState,
-            '/netra/failsafe_state',
+            "/netra/failsafe_state",
             qos,
         )
 
         self.zeroization_pub = self.create_publisher(
             Bool,
-            '/netra/zeroization_status',
+            "/netra/zeroization_status",
             qos,
         )
 
         # --- Subscribers ---
         self.geofence_sub = self.create_subscription(
             Bool,
-            '/netra/geofence_violation',
+            "/netra/geofence_violation",
             self._on_geofence_violation,
             qos,
         )
@@ -120,7 +119,7 @@ class TamperMonitor(Node):
         if self.simulation_mode:
             self.sim_tamper_sub = self.create_subscription(
                 Bool,
-                '/netra/sim_tamper_trigger',
+                "/netra/sim_tamper_trigger",
                 self._on_sim_tamper_trigger,
                 qos,
             )
@@ -131,9 +130,7 @@ class TamperMonitor(Node):
             self._monitor_callback,
         )
 
-        self.get_logger().info(
-            f"Tamper monitor initialized [sim={self.simulation_mode}]"
-        )
+        self.get_logger().info(f"Tamper monitor initialized [sim={self.simulation_mode}]")
 
     def _monitor_callback(self):
         """
@@ -153,17 +150,13 @@ class TamperMonitor(Node):
             # Serpentine continuity: normally HIGH (pulled up), LOW = wire cut
             tamper_loop = self.gpio.input(self.tamper_pin)
             if tamper_loop == self.gpio.LOW:
-                self.get_logger().fatal(
-                    "⚠️ TAMPER LOOP BREACH: Serpentine continuity wire CUT!"
-                )
+                self.get_logger().fatal("⚠️ TAMPER LOOP BREACH: Serpentine continuity wire CUT!")
                 breach_detected = True
 
             # Photodiode: normally LOW (dark inside chassis), HIGH = light detected
             photo_detect = self.gpio.input(self.photo_pin)
             if photo_detect == self.gpio.HIGH:
-                self.get_logger().fatal(
-                    "⚠️ PHOTODIODE BREACH: Ambient light detected inside chassis!"
-                )
+                self.get_logger().fatal("⚠️ PHOTODIODE BREACH: Ambient light detected inside chassis!")
                 breach_detected = True
 
         if breach_detected:
@@ -172,17 +165,13 @@ class TamperMonitor(Node):
     def _on_geofence_violation(self, msg: Bool):
         """Handle geofence violation signal from mission planner."""
         if msg.data and self.geofence_enabled and not self.zeroization_complete:
-            self.get_logger().fatal(
-                "⚠️ GEOFENCE VIOLATION: Vehicle outside mission boundary!"
-            )
+            self.get_logger().fatal("⚠️ GEOFENCE VIOLATION: Vehicle outside mission boundary!")
             self._execute_zeroization()
 
     def _on_sim_tamper_trigger(self, msg: Bool):
         """Simulation-only: manually trigger tamper event for testing."""
         if msg.data and not self.zeroization_complete:
-            self.get_logger().warn(
-                "[SIM] Manual tamper trigger received — executing zeroization."
-            )
+            self.get_logger().warn("[SIM] Manual tamper trigger received — executing zeroization.")
             self._execute_zeroization()
 
     def _execute_zeroization(self):
@@ -214,7 +203,6 @@ class TamperMonitor(Node):
         self.get_logger().fatal("  Step 2/3: NVMe Crypto-Erase command dispatched")
         if not self.simulation_mode:
             try:
-                import subprocess
                 # In production: nvme format /dev/nvme0n1 --ses=1 (crypto-erase)
                 # subprocess.run(['nvme', 'format', '/dev/nvme0n1', '--ses=1'],
                 #                timeout=0.1, check=True)
@@ -248,7 +236,7 @@ class TamperMonitor(Node):
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.current_mode = FailsafeState.MODE_SECURITY_TAMPER
         msg.camera_lens_obscuration = 1.0  # Irrelevant in tamper state
-        msg.v_max_allowed = 0.0            # All motion prohibited
+        msg.v_max_allowed = 0.0  # All motion prohibited
         msg.air_purge_firing = False
         msg.zeroization_engaged = self.zeroization_complete
         self.failsafe_pub.publish(msg)
@@ -272,5 +260,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -13,9 +13,10 @@ This eliminates ~42% of the image surface area, reducing TensorRT INT8
 inference latency from 4.2 ms → 2.6 ms.
 """
 
-import numpy as np
 import math
-from typing import Tuple, Optional
+from typing import Tuple
+
+import numpy as np
 
 
 class HorizonROICropper:

@@ -13,11 +13,10 @@ Reference:
   MASTER_PROJECT_REPORT.md §3.3 & §8
 """
 
-import numpy as np
-import math
 import logging
+import math
 from enum import IntEnum
-from typing import Tuple, Optional
+from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -76,19 +75,26 @@ class SafetyGuards:
         if self._latch_timer > 0.0:
             self._latch_timer -= dt
             if self._latch_timer > 0.0:
-                return GuardStatus.EMERGENCY_STOP, f"LATCHED: {self._latched_reason} ({self._latch_timer:.1f}s remaining)"
+                return (
+                    GuardStatus.EMERGENCY_STOP,
+                    f"LATCHED: {self._latched_reason} ({self._latch_timer:.1f}s remaining)",
+                )
 
         abs_roll = abs(roll_rad)
         abs_pitch = abs(pitch_rad)
 
         # 1. Critical Tip-Over Condition
         if abs_pitch >= self.pitch_crit_rad:
-            reason = f"CRITICAL PITCH EXCEEDED ({math.degrees(abs_pitch):.1f}° >= {math.degrees(self.pitch_crit_rad):.1f}°)"
+            reason = (
+                f"CRITICAL PITCH EXCEEDED ({math.degrees(abs_pitch):.1f}° >= {math.degrees(self.pitch_crit_rad):.1f}°)"
+            )
             self._trigger_latch(reason)
             return GuardStatus.EMERGENCY_STOP, reason
 
         if abs_roll >= self.roll_crit_rad:
-            reason = f"CRITICAL ROLL EXCEEDED ({math.degrees(abs_roll):.1f}° >= {math.degrees(self.roll_crit_rad):.1f}°)"
+            reason = (
+                f"CRITICAL ROLL EXCEEDED ({math.degrees(abs_roll):.1f}° >= {math.degrees(self.roll_crit_rad):.1f}°)"
+            )
             self._trigger_latch(reason)
             return GuardStatus.EMERGENCY_STOP, reason
 
@@ -96,7 +102,7 @@ class SafetyGuards:
         # Compensate for 1g static baseline
         dynamic_z = abs(accel_z_ms2 - 9.80665)
         if dynamic_z >= self.shock_threshold_ms2:
-            g_force = (dynamic_z / 9.80665)
+            g_force = dynamic_z / 9.80665
             reason = f"SUSPENSION SHOCK DETECTED ({g_force:.2f}g >= {self.shock_threshold_ms2/9.80665:.2f}g)"
             self._trigger_latch(reason)
             return GuardStatus.EMERGENCY_STOP, reason

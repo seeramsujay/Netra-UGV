@@ -4,7 +4,7 @@ This exercises everything on the ROS side (parameter declaration, publishers,
 message fields, the /cmd_vel -> VehicleControl path, clean shutdown) without a
 CARLA server. It cannot prove the server-side behaviour; see sim/README.md.
 """
-import math
+
 import os
 import sys
 import threading
@@ -14,9 +14,9 @@ import types
 import numpy as np
 import pytest
 
-rclpy = pytest.importorskip('rclpy')
+rclpy = pytest.importorskip("rclpy")
 
-W, H = 64, 36          # tiny images keep the test fast
+W, H = 64, 36  # tiny images keep the test fast
 
 
 class V3:
@@ -47,7 +47,7 @@ class WeatherParameters:
     pass
 
 
-for _name in ('ClearNoon', 'ClearNight', 'HardRainNoon'):
+for _name in ("ClearNoon", "ClearNight", "HardRainNoon"):
     setattr(WeatherParameters, _name, WeatherParameters())
 
 
@@ -66,7 +66,7 @@ class Library:
 
 class Wheel:
     def __init__(self, x, y, steer):
-        self.position, self.max_steer_angle = V3(x * 100, y * 100), steer       # CARLA: cm
+        self.position, self.max_steer_angle = V3(x * 100, y * 100), steer  # CARLA: cm
 
 
 class Actor:
@@ -97,8 +97,9 @@ class Actor:
         self.last_control = c
 
     def get_physics_control(self):
-        return types.SimpleNamespace(wheels=[Wheel(1.4, -0.8, 70), Wheel(1.4, 0.8, 70),
-                                             Wheel(-1.5, -0.8, 0), Wheel(-1.5, 0.8, 0)])
+        return types.SimpleNamespace(
+            wheels=[Wheel(1.4, -0.8, 70), Wheel(1.4, 0.8, 70), Wheel(-1.5, -0.8, 0), Wheel(-1.5, 0.8, 0)]
+        )
 
 
 class Settings:
@@ -112,8 +113,9 @@ class World:
         self.history = []
 
     def get_map(self):
-        return types.SimpleNamespace(name='Town_Fake', get_spawn_points=lambda: [
-            Transform(Location(100.0, -40.0, 0.5), Rotation(yaw=90.0))])
+        return types.SimpleNamespace(
+            name="Town_Fake", get_spawn_points=lambda: [Transform(Location(100.0, -40.0, 0.5), Rotation(yaw=90.0))]
+        )
 
     def get_settings(self):
         s = Settings()
@@ -134,8 +136,8 @@ class World:
         return Library()
 
     def get_spectator(self):
-        self.spectator = getattr(self, 'spectator', types.SimpleNamespace(transform=None))
-        self.spectator.set_transform = lambda tf: setattr(self.spectator, 'transform', tf)
+        self.spectator = getattr(self, "spectator", types.SimpleNamespace(transform=None))
+        self.spectator.set_transform = lambda tf: setattr(self.spectator, "transform", tf)
         self.spectator.get_transform = lambda: self.spectator.transform or Transform()
         return self.spectator
 
@@ -146,28 +148,32 @@ class World:
 
     def tick(self):
         if self.frame >= self.max_ticks:
-            raise KeyboardInterrupt          # ends the bridge loop through its normal shutdown path
-        time.sleep(0.004)                    # a real server paces ticks; also lets DDS discovery finish
+            raise KeyboardInterrupt  # ends the bridge loop through its normal shutdown path
+        time.sleep(0.004)  # a real server paces ticks; also lets DDS discovery finish
         self.frame += 1
         t = self.frame * self.settings.fixed_delta_seconds
         for a in self.actors:
             if a.callback is None:
                 continue
-            if a.type_id == 'sensor.other.imu':
-                a.callback(types.SimpleNamespace(
-                    frame=self.frame, timestamp=t, accelerometer=V3(0.0, 0.0, 9.81),
-                    gyroscope=V3(0.0, 0.0, 0.0)))
-            elif self.frame % 6 == 0:        # cameras: sensor_tick > physics step
+            if a.type_id == "sensor.other.imu":
+                a.callback(
+                    types.SimpleNamespace(
+                        frame=self.frame, timestamp=t, accelerometer=V3(0.0, 0.0, 9.81), gyroscope=V3(0.0, 0.0, 0.0)
+                    )
+                )
+            elif self.frame % 6 == 0:  # cameras: sensor_tick > physics step
                 raw = np.zeros((H, W, 4), np.uint8)
-                if a.type_id == 'sensor.camera.depth':
-                    raw[..., :3] = (0, 0, 8)                     # constant depth code
-                a.callback(types.SimpleNamespace(frame=self.frame, timestamp=t, width=W, height=H,
-                                                 raw_data=raw.tobytes()))
+                if a.type_id == "sensor.camera.depth":
+                    raw[..., :3] = (0, 0, 8)  # constant depth code
+                a.callback(
+                    types.SimpleNamespace(frame=self.frame, timestamp=t, width=W, height=H, raw_data=raw.tobytes())
+                )
         return self.frame
 
     def get_snapshot(self):
-        return types.SimpleNamespace(timestamp=types.SimpleNamespace(
-            elapsed_seconds=self.frame * self.settings.fixed_delta_seconds))
+        return types.SimpleNamespace(
+            timestamp=types.SimpleNamespace(elapsed_seconds=self.frame * self.settings.fixed_delta_seconds)
+        )
 
 
 class Client:
@@ -181,7 +187,7 @@ class Client:
         pass
 
     def get_available_maps(self):
-        return ['/Game/Carla/Maps/Town_Fake', '/Game/Carla/Maps/Mine_01']
+        return ["/Game/Carla/Maps/Town_Fake", "/Game/Carla/Maps/Mine_01"]
 
     def load_world(self, name):
         pass
@@ -190,11 +196,11 @@ class Client:
         return Client.world
 
     def get_server_version(self):
-        return '0.9.16-fake'
+        return "0.9.16-fake"
 
 
 def make_fake_carla():
-    mod = types.ModuleType('carla')
+    mod = types.ModuleType("carla")
     for cls in (Client, Location, Rotation, Transform, VehicleControl, WeatherParameters):
         setattr(mod, cls.__name__, cls)
     return mod
@@ -203,20 +209,21 @@ def make_fake_carla():
 @pytest.fixture
 def fake_carla(monkeypatch):
     Client.world = None
-    monkeypatch.setitem(sys.modules, 'carla', make_fake_carla())
-    monkeypatch.setenv('ROS_DOMAIN_ID', str(70 + os.getpid() % 100))
+    monkeypatch.setitem(sys.modules, "carla", make_fake_carla())
+    monkeypatch.setenv("ROS_DOMAIN_ID", str(70 + os.getpid() % 100))
     yield
     Client.world = None
 
 
 def run_bridge(extra_args=()):
     from netra_sim import carla_bridge
+
     err = []
 
     def target():
         try:
-            carla_bridge.main(['--ros-args', *extra_args])
-        except BaseException as e:           # surfaced by the test
+            carla_bridge.main(["--ros-args", *extra_args])
+        except BaseException as e:  # surfaced by the test
             err.append(e)
 
     th = threading.Thread(target=target, daemon=True)
@@ -232,21 +239,37 @@ def test_bridge_publishes_contract_and_drives_vehicle(fake_carla):
     from rclpy.qos import QoSProfile, ReliabilityPolicy
     from sensor_msgs.msg import CameraInfo, Image, Imu
 
-    ctx = rclpy.Context()                    # separate from the bridge's default context
+    ctx = rclpy.Context()  # separate from the bridge's default context
     rclpy.init(context=ctx)
-    probe = Node('probe', context=ctx)
+    probe = Node("probe", context=ctx)
     executor = SingleThreadedExecutor(context=ctx)
     executor.add_node(probe)
     best_effort = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, depth=50)
-    got = {k: [] for k in ('image', 'depth', 'info', 'imu', 'odom')}
-    for key, typ, topic in (('image', Image, '/camera/image_raw'), ('depth', Image, '/camera/depth_image'),
-                            ('info', CameraInfo, '/camera/camera_info'), ('imu', Imu, '/imu/data'),
-                            ('odom', Odometry, '/odom_ground_truth')):
-        probe.create_subscription(typ, topic, got[key].append, best_effort if key != 'odom' else 10)
-    cmd_pub = probe.create_publisher(Twist, '/cmd_vel', 10)
+    got = {k: [] for k in ("image", "depth", "info", "imu", "odom")}
+    for key, typ, topic in (
+        ("image", Image, "/camera/image_raw"),
+        ("depth", Image, "/camera/depth_image"),
+        ("info", CameraInfo, "/camera/camera_info"),
+        ("imu", Imu, "/imu/data"),
+        ("odom", Odometry, "/odom_ground_truth"),
+    ):
+        probe.create_subscription(typ, topic, got[key].append, best_effort if key != "odom" else 10)
+    cmd_pub = probe.create_publisher(Twist, "/cmd_vel", 10)
 
-    th, err = run_bridge(['-p', 'image_width:=%d' % W, '-p', 'image_height:=%d' % H,
-                          '-p', 'weather:=ClearNight', '-p', 'imu_gravity:=9.81', '-p', 'map:=Mine_01'])
+    th, err = run_bridge(
+        [
+            "-p",
+            "image_width:=%d" % W,
+            "-p",
+            "image_height:=%d" % H,
+            "-p",
+            "weather:=ClearNight",
+            "-p",
+            "imu_gravity:=9.81",
+            "-p",
+            "map:=Mine_01",
+        ]
+    )
     try:
         cmd = Twist()
         cmd.linear.x, cmd.angular.z = 1.0, 0.2
@@ -260,17 +283,21 @@ def test_bridge_publishes_contract_and_drives_vehicle(fake_carla):
         probe.destroy_node()
         rclpy.shutdown(context=ctx)
 
-    assert not th.is_alive(), 'bridge did not shut down'
+    assert not th.is_alive(), "bridge did not shut down"
     assert not err, err
     world = Client.world
     vehicle = world.actors[0]
 
     # setup
-    assert world.history[0] == (True, pytest.approx(0.005))          # synchronous, 200 Hz
+    assert world.history[0] == (True, pytest.approx(0.005))  # synchronous, 200 Hz
     assert world.weather is WeatherParameters.ClearNight and world.gravity == 9.81
-    assert {a.type_id for a in world.actors} == {vehicle.type_id, 'sensor.camera.rgb',
-                                                 'sensor.camera.depth', 'sensor.other.imu'}
-    rgb = next(a for a in world.actors if a.type_id == 'sensor.camera.rgb')
+    assert {a.type_id for a in world.actors} == {
+        vehicle.type_id,
+        "sensor.camera.rgb",
+        "sensor.camera.depth",
+        "sensor.other.imu",
+    }
+    rgb = next(a for a in world.actors if a.type_id == "sensor.camera.rgb")
     assert float(rgb.world is world) and rgb.parent is vehicle
     # clean shutdown: actors destroyed, world settings restored
     assert all(a.destroyed for a in world.actors) and world.history[-1] == (False, 0.0)
@@ -279,19 +306,20 @@ def test_bridge_publishes_contract_and_drives_vehicle(fake_carla):
     assert world.spectator.transform is rgb.transform
 
     # published data
-    assert len(got['imu']) >= 30 and len(got['image']) >= 3 and len(got['depth']) >= 3 and got['odom']
-    imu = got['imu'][-1]
-    assert imu.linear_acceleration.z == pytest.approx(9.81) and imu.header.frame_id == 'imu_link'
-    assert imu.orientation_covariance[0] > 0                         # attitude provided for the planner
-    img = got['image'][-1]
-    assert (img.width, img.height, img.encoding) == (W, H, 'bgr8') and len(img.data) == W * H * 3
-    d = np.frombuffer(got['depth'][-1].data, np.float32)
-    assert got['depth'][-1].encoding == '32FC1' and np.all(d > 0)
-    ci = got['info'][-1]
-    assert ci.k[0] == pytest.approx(500.0) and ci.k[2] == W / 2 and ci.header.frame_id == 'camera_optical_frame'
+    assert len(got["imu"]) >= 30 and len(got["image"]) >= 3 and len(got["depth"]) >= 3 and got["odom"]
+    imu = got["imu"][-1]
+    assert imu.linear_acceleration.z == pytest.approx(9.81) and imu.header.frame_id == "imu_link"
+    assert imu.orientation_covariance[0] > 0  # attitude provided for the planner
+    img = got["image"][-1]
+    assert (img.width, img.height, img.encoding) == (W, H, "bgr8") and len(img.data) == W * H * 3
+    d = np.frombuffer(got["depth"][-1].data, np.float32)
+    assert got["depth"][-1].encoding == "32FC1" and np.all(d > 0)
+    ci = got["info"][-1]
+    assert ci.k[0] == pytest.approx(500.0) and ci.k[2] == W / 2 and ci.header.frame_id == "camera_optical_frame"
     # ground truth is re-anchored onto the test field's start pose
     from netra_sim import scenario
-    p = got['odom'][-1].pose.pose.position
+
+    p = got["odom"][-1].pose.pose.position
     assert (p.x, p.y) == pytest.approx(scenario.START[:2], abs=1e-6)
 
     # /cmd_vel 1.0 m/s, +0.2 rad/s (left) -> throttle, steer left (negative in CARLA), no brake
@@ -300,39 +328,50 @@ def test_bridge_publishes_contract_and_drives_vehicle(fake_carla):
 
 
 def test_bridge_rejects_unknown_map_and_weather(fake_carla):
-    th, err = run_bridge(['-p', 'map:=NoSuchMap'])
+    th, err = run_bridge(["-p", "map:=NoSuchMap"])
     th.join(timeout=10)
-    assert err and 'NoSuchMap' in str(err[0]) and 'Mine_01' in str(err[0])
+    assert err and "NoSuchMap" in str(err[0]) and "Mine_01" in str(err[0])
     assert Client.world is None or Client.world.settings.synchronous_mode is False
 
 
 def test_failed_setup_leaves_server_in_async_mode(fake_carla):
-    th, err = run_bridge(['-p', 'weather:=NoSuchWeather'])
+    th, err = run_bridge(["-p", "weather:=NoSuchWeather"])
     th.join(timeout=10)
-    assert err and 'NoSuchWeather' in str(err[0]) and 'ClearNoon' in str(err[0])
+    assert err and "NoSuchWeather" in str(err[0]) and "ClearNoon" in str(err[0])
     assert Client.world.settings.synchronous_mode is False and not Client.world.actors
 
 
 def test_recorder_writes_a_dataset(tmp_path):
     from netra_sim.carla_backend import Recorder
-    cfg = {'record_every_s': 0.5, 'record_max': 3}
+
+    cfg = {"record_every_s": 0.5, "record_max": 3}
     rec = Recorder(str(tmp_path), cfg)
     w, h = 8, 4
     bgra = np.zeros((h, w, 4), np.uint8)
     sem = bgra.copy()
-    sem[..., 2] = 7                                         # class id lives in the red channel
-    for i in range(10):                                     # frames every 0.2 s -> saved every 0.6 s
+    sem[..., 2] = 7  # class id lives in the red channel
+    for i in range(10):  # frames every 0.2 s -> saved every 0.6 s
         t = 0.2 * i
-        rec.maybe_save({'rgb': (t, w, h, bgra.tobytes()), 'depth': (t, w, h, bgra.tobytes()),
-                        'semantic': (t, w, h, sem.tobytes()), 'transform': (1, 2, 3, 0, 0, 90),
-                        'velocity': (0, 0, 0), 'imu': [(1, t, (0, 0, 9.8), (0, 0, 0))]}, 'ClearNoon')
+        rec.maybe_save(
+            {
+                "rgb": (t, w, h, bgra.tobytes()),
+                "depth": (t, w, h, bgra.tobytes()),
+                "semantic": (t, w, h, sem.tobytes()),
+                "transform": (1, 2, 3, 0, 0, 90),
+                "velocity": (0, 0, 0),
+                "imu": [(1, t, (0, 0, 9.8), (0, 0, 0))],
+            },
+            "ClearNoon",
+        )
     rec.close()
-    assert rec.count == 3 and rec.done                       # honours record_max
-    files = sorted(p.name for p in (tmp_path / rec.dir.split('/')[-1] / 'rgb').iterdir())
-    assert files == ['000000.png', '000001.png', '000002.png']
+    assert rec.count == 3 and rec.done  # honours record_max
+    files = sorted(p.name for p in (tmp_path / rec.dir.split("/")[-1] / "rgb").iterdir())
+    assert files == ["000000.png", "000001.png", "000002.png"]
     import json
-    meta = [json.loads(line) for line in open(rec.dir + '/meta.jsonl')]
-    assert [m['id'] for m in meta] == ['000000', '000001', '000002'] and meta[0]['weather'] == 'ClearNoon'
-    assert np.load(rec.dir + '/depth/000000.npy').shape == (h, w)
+
+    meta = [json.loads(line) for line in open(rec.dir + "/meta.jsonl")]
+    assert [m["id"] for m in meta] == ["000000", "000001", "000002"] and meta[0]["weather"] == "ClearNoon"
+    assert np.load(rec.dir + "/depth/000000.npy").shape == (h, w)
     import cv2
-    assert int(cv2.imread(rec.dir + '/semantic/000000.png', cv2.IMREAD_UNCHANGED).max()) == 7
+
+    assert int(cv2.imread(rec.dir + "/semantic/000000.png", cv2.IMREAD_UNCHANGED).max()) == 7

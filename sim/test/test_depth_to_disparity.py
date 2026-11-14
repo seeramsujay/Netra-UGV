@@ -1,5 +1,4 @@
 import numpy as np
-
 from netra_sim.depth_to_disparity import depth_to_disparity
 
 

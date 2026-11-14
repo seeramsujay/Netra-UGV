@@ -16,10 +16,11 @@ Reference:
   MASTER_PROJECT_REPORT.md §3.3
 """
 
-import numpy as np
-import math
 import logging
-from typing import List, Tuple, Optional, Dict, Any
+import math
+from typing import List, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +32,12 @@ def normalize_angle(angle: float) -> float:
 
 class TEBTrajectoryPoint:
     """A single state knot along the Timed-Elastic-Band."""
-    __slots__ = ('x', 'y', 'theta', 'v', 'omega', 'dt')
 
-    def __init__(self, x: float = 0.0, y: float = 0.0, theta: float = 0.0,
-                 v: float = 0.0, omega: float = 0.0, dt: float = 0.1):
+    __slots__ = ("x", "y", "theta", "v", "omega", "dt")
+
+    def __init__(
+        self, x: float = 0.0, y: float = 0.0, theta: float = 0.0, v: float = 0.0, omega: float = 0.0, dt: float = 0.1
+    ):
         self.x = float(x)
         self.y = float(y)
         self.theta = float(theta)
@@ -176,7 +179,7 @@ class TEBPlanner:
                     ny = last_pt.y + ratio * (yg - last_pt.y)
                     nth = normalize_angle(math.atan2(yg - last_pt.y, xg - last_pt.x))
                     points.append(TEBTrajectoryPoint(nx, ny, nth, last_pt.v, 0.0, self.dt_nominal))
-                return points[:self.horizon_steps]
+                return points[: self.horizon_steps]
 
         # Cold start: interpolate along arc or line to goal
         points = []
@@ -239,8 +242,7 @@ class TEBPlanner:
             dx_obs, dy_obs = 0.0, 0.0
             if costmap_data is not None:
                 dx_obs, dy_obs = self._compute_obstacle_gradient(
-                    curr_pt.x, curr_pt.y,
-                    costmap_data, costmap_origin, costmap_resolution
+                    curr_pt.x, curr_pt.y, costmap_data, costmap_origin, costmap_resolution
                 )
 
             # Apply displacement update
@@ -314,7 +316,7 @@ class TEBPlanner:
         if len(points) < 2:
             return 0.0, 0.0
 
-        p0 = points[0]
+        _ = points[0]
         p1 = points[1]
         x0, y0, th0 = current_pose
 

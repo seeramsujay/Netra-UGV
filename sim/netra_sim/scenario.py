@@ -7,6 +7,7 @@ bundled Python.
 
 World frame: ENU, metres, z up. The field is 50 m x 36 m centred on the origin.
 """
+
 import math
 import random
 from dataclasses import dataclass
@@ -22,12 +23,11 @@ SEED = 7
 ROCK_COUNT = 28
 
 # (cx, cy, radius, amplitude)
-HILLS = [(-5, 2, 3.5, 1.1), (8, -6, 4, 1.4), (14, 10, 3, 1.0),
-         (-14, -8, 4, 0.9), (0, 12, 3.5, 1.2), (20, -2, 3, 1.0)]
+HILLS = [(-5, 2, 3.5, 1.1), (8, -6, 4, 1.4), (14, 10, 3, 1.0), (-14, -8, 4, 0.9), (0, 12, 3.5, 1.2), (20, -2, 3, 1.0)]
 # (cx, cy, width_x, length_y): axis-aligned negative obstacles
 DITCHES = [(-8, -4, 1.3, 8), (4, 3, 10, 1.3), (15, -12, 1.3, 7), (-2, -13, 8, 1.3)]
 
-START = (-22.0, -14.0, 0.6)          # x, y, yaw
+START = (-22.0, -14.0, 0.6)  # x, y, yaw
 GOAL = (21.0, 13.0)
 # Integer coordinates: the Webots controller HMAC-signs them as "%d,%d".
 WAYPOINTS = [(-12, -10), (-3, -9), (6, -5), (12, -4), (21, 13)]
@@ -47,13 +47,11 @@ class Rock:
 
 
 def in_ditch(x, y, pad=0.0):
-    return any(abs(x - cx) < w / 2 + pad and abs(y - cy) < h / 2 + pad
-               for cx, cy, w, h in DITCHES)
+    return any(abs(x - cx) < w / 2 + pad and abs(y - cy) < h / 2 + pad for cx, cy, w, h in DITCHES)
 
 
 def terrain_height(x, y, ditches=True):
-    z = sum(a * math.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * (r / 1.6) ** 2))
-            for cx, cy, r, a in HILLS)
+    z = sum(a * math.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * (r / 1.6) ** 2)) for cx, cy, r, a in HILLS)
     z += 0.03 * math.sin(x * 1.7) * math.cos(y * 1.3)
     # keep the start area flat
     z *= min(1.0, max(0.0, (math.hypot(x - START[0], y - START[1]) - 4) / 4))

@@ -14,8 +14,9 @@ Reference: TECHNICAL_ARCHITECTURE.md §5.4
   Update rate: 10 Hz
 """
 
+from typing import Optional, Tuple
+
 import numpy as np
-from typing import Tuple, Optional
 
 
 class ElevationGrid:

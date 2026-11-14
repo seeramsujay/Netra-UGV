@@ -6,6 +6,7 @@ Reference: docs/WEIGHTS_AND_MODELS_GUIDE.md §3, Step 1
 
 import os
 import sys
+
 import torch
 
 # Ensure bisenetv2_model can be imported
@@ -18,8 +19,8 @@ from bisenetv2_model import BiSeNetV2
 
 
 def export_onnx(
-    weights_path: str = '../bisenetv2_rellis_best.pth',
-    output_onnx_path: str = '../bisenetv2_rellis.onnx',
+    weights_path: str = "../bisenetv2_rellis_best.pth",
+    output_onnx_path: str = "../bisenetv2_rellis.onnx",
 ):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     abs_weights = os.path.abspath(os.path.join(script_dir, weights_path))
@@ -27,8 +28,12 @@ def export_onnx(
 
     print(f"Loading checkpoint from: {abs_weights}")
     model = BiSeNetV2(num_classes=4, use_aux=False)
-    checkpoint = torch.load(abs_weights, map_location='cpu')
-    state_dict = checkpoint['model_state_dict'] if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint else checkpoint
+    checkpoint = torch.load(abs_weights, map_location="cpu")
+    state_dict = (
+        checkpoint["model_state_dict"]
+        if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint
+        else checkpoint
+    )
     filtered = {k: v for k, v in state_dict.items() if not k.startswith("aux")}
     model.load_state_dict(filtered, strict=False)
     model.eval()
@@ -44,13 +49,13 @@ def export_onnx(
         export_params=True,
         opset_version=17,
         do_constant_folding=True,
-        input_names=['input_rgb'],
-        output_names=['output_mask'],
+        input_names=["input_rgb"],
+        output_names=["output_mask"],
     )
     print("[OK] ONNX export complete.")
 
 
-if __name__ == '__main__':
-    w_path = sys.argv[1] if len(sys.argv) > 1 else '../bisenetv2_rellis_best.pth'
-    o_path = sys.argv[2] if len(sys.argv) > 2 else '../bisenetv2_rellis.onnx'
+if __name__ == "__main__":
+    w_path = sys.argv[1] if len(sys.argv) > 1 else "../bisenetv2_rellis_best.pth"
+    o_path = sys.argv[2] if len(sys.argv) > 2 else "../bisenetv2_rellis.onnx"
     export_onnx(w_path, o_path)

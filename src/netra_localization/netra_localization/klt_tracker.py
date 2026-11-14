@@ -14,10 +14,11 @@ Reference: MASTER_PROJECT_REPORT.md §3.3
   Multi-level KLT sparse optical flow using ARM NEON SIMD intrinsics
 """
 
-import numpy as np
-import cv2
-from typing import Dict, List, Optional, Tuple
 import logging
+from typing import Dict, List, Optional, Tuple
+
+import cv2
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +78,7 @@ class KLTTracker:
         self.lk_params = dict(
             winSize=lk_win_size,
             maxLevel=lk_max_level,
-            criteria=lk_criteria or (
-                cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01
-            ),
+            criteria=lk_criteria or (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01),
         )
         self.ransac_thresh = ransac_threshold
 
@@ -119,9 +118,7 @@ class KLTTracker:
                 dtype=np.float32,
             ).reshape(-1, 1, 2)
 
-            next_points, status, _ = cv2.calcOpticalFlowPyrLK(
-                self.prev_gray, gray, prev_points, None, **self.lk_params
-            )
+            next_points, status, _ = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray, prev_points, None, **self.lk_params)
 
             # Backward check for robustness
             back_points, back_status, _ = cv2.calcOpticalFlowPyrLK(
@@ -143,9 +140,7 @@ class KLTTracker:
 
             for i, track_id in enumerate(track_ids):
                 if status[i]:
-                    self.active_tracks[track_id].add_observation(
-                        next_points[i].flatten()
-                    )
+                    self.active_tracks[track_id].add_observation(next_points[i].flatten())
                     # Retire old tracks
                     if self.active_tracks[track_id].age >= self.max_age:
                         self.active_tracks[track_id].is_active = False
@@ -194,10 +189,7 @@ class KLTTracker:
         if len(self.active_tracks) < 8:
             return
 
-        tracks_with_motion = [
-            (tid, t) for tid, t in self.active_tracks.items()
-            if t.age >= 2
-        ]
+        tracks_with_motion = [(tid, t) for tid, t in self.active_tracks.items() if t.age >= 2]
 
         if len(tracks_with_motion) < 8:
             return
@@ -211,9 +203,7 @@ class KLTTracker:
             dtype=np.float32,
         )
 
-        _, inlier_mask = cv2.findFundamentalMat(
-            prev_pts, curr_pts, cv2.FM_RANSAC, self.ransac_thresh
-        )
+        _, inlier_mask = cv2.findFundamentalMat(prev_pts, curr_pts, cv2.FM_RANSAC, self.ransac_thresh)
 
         if inlier_mask is not None:
             inlier_mask = inlier_mask.flatten().astype(bool)
@@ -226,10 +216,7 @@ class KLTTracker:
 
     def get_mature_tracks(self) -> List[FeatureTrack]:
         """Return active tracks with sufficient observations for VIO update."""
-        return [
-            t for t in self.active_tracks.values()
-            if t.age >= self.min_track_length
-        ]
+        return [t for t in self.active_tracks.values() if t.age >= self.min_track_length]
 
     def pop_lost_tracks(self) -> List[FeatureTrack]:
         """Return and clear the list of recently lost tracks (for MSCKF update)."""

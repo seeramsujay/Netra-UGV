@@ -18,7 +18,6 @@ Reference:
   MASTER_PROJECT_REPORT.md §4 & TECHNICAL_ARCHITECTURE.md §4.3
 """
 
-import time
 import logging
 from typing import Tuple
 
@@ -28,55 +27,84 @@ logger = logging.getLogger(__name__)
 try:
     import rclpy
     from rclpy.node import Node
-    from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+    from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+
     _HAS_RCLPY = True
 except ImportError:
     _HAS_RCLPY = False
+
     class Node:
-        def __init__(self, *args, **kwargs): pass
-        def declare_parameter(self, *args, **kwargs): pass
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def declare_parameter(self, *args, **kwargs):
+            pass
+
         def get_parameter(self, *args, **kwargs):
             class _P:
                 def get_parameter_value(self):
                     class _V:
                         double_value = 1.0
                         string_value = ""
+
                     return _V()
+
             return _P()
-        def create_publisher(self, *args, **kwargs): pass
-        def create_subscription(self, *args, **kwargs): pass
-        def create_timer(self, *args, **kwargs): pass
-        def get_logger(self): return logger
+
+        def create_publisher(self, *args, **kwargs):
+            pass
+
+        def create_subscription(self, *args, **kwargs):
+            pass
+
+        def create_timer(self, *args, **kwargs):
+            pass
+
+        def get_logger(self):
+            return logger
+
         def get_clock(self):
             class _C:
                 def now(self):
                     class _T:
-                        def to_msg(self): return None
+                        def to_msg(self):
+                            return None
+
                     return _T()
+
             return _C()
 
     class QoSProfile:
-        def __init__(self, *args, **kwargs): pass
+        def __init__(self, *args, **kwargs):
+            pass
+
     class ReliabilityPolicy:
         RELIABLE = 1
         BEST_EFFORT = 2
+
     class HistoryPolicy:
         KEEP_LAST = 1
 
+
 try:
-    from std_msgs.msg import Header, Bool, Float32
+    from std_msgs.msg import Bool, Float32, Header
+
     from netra_msgs.msg import FailsafeState
 except ImportError:
+
     class Header:
         def __init__(self):
             self.stamp = None
-            self.frame_id = ''
+            self.frame_id = ""
+
     class Bool:
         def __init__(self):
             self.data = False
+
     class Float32:
         def __init__(self):
             self.data = 0.0
+
     class FailsafeState:
         def __init__(self):
             self.header = Header()
@@ -85,6 +113,7 @@ except ImportError:
             self.v_max_allowed = 1.5
             self.air_purge_firing = False
             self.zeroization_engaged = False
+
 
 # Constants matching netra_msgs/FailsafeState
 MODE_NOMINAL = 0
@@ -215,17 +244,17 @@ class FailsafeNode(Node):
     """
 
     def __init__(self):
-        super().__init__('failsafe_manager')
+        super().__init__("failsafe_manager")
 
         # Declare parameters
-        self.declare_parameter('obscuration_degraded_thresh', 0.35)
-        self.declare_parameter('obscuration_critical_thresh', 0.70)
-        self.declare_parameter('air_purge_duration_sec', 1.5)
-        self.declare_parameter('publish_rate_hz', 10.0)
+        self.declare_parameter("obscuration_degraded_thresh", 0.35)
+        self.declare_parameter("obscuration_critical_thresh", 0.70)
+        self.declare_parameter("air_purge_duration_sec", 1.5)
+        self.declare_parameter("publish_rate_hz", 10.0)
 
-        degraded_th = self.get_parameter('obscuration_degraded_thresh').get_parameter_value().double_value
-        critical_th = self.get_parameter('obscuration_critical_thresh').get_parameter_value().double_value
-        purge_dur = self.get_parameter('air_purge_duration_sec').get_parameter_value().double_value
+        degraded_th = self.get_parameter("obscuration_degraded_thresh").get_parameter_value().double_value
+        critical_th = self.get_parameter("obscuration_critical_thresh").get_parameter_value().double_value
+        purge_dur = self.get_parameter("air_purge_duration_sec").get_parameter_value().double_value
 
         self.fsm = FailsafeStateMachine(
             obscuration_degraded_thresh=degraded_th,
@@ -240,18 +269,18 @@ class FailsafeNode(Node):
         )
 
         # Publisher
-        self.state_pub = self.create_publisher(FailsafeState, '/netra/failsafe_state', qos)
+        self.state_pub = self.create_publisher(FailsafeState, "/netra/failsafe_state", qos)
 
         # Subscribers
-        self.tamper_sub = self.create_subscription(Bool, '/netra/tamper_alert', self._tamper_cb, qos)
-        self.zero_sub = self.create_subscription(Bool, '/netra/zeroization_status', self._tamper_cb, qos)
-        self.lens_sub = self.create_subscription(Float32, '/camera/lens_metrics', self._lens_cb, qos)
+        self.tamper_sub = self.create_subscription(Bool, "/netra/tamper_alert", self._tamper_cb, qos)
+        self.zero_sub = self.create_subscription(Bool, "/netra/zeroization_status", self._tamper_cb, qos)
+        self.lens_sub = self.create_subscription(Float32, "/camera/lens_metrics", self._lens_cb, qos)
 
         self._tamper_flag = False
         self._lens_obscuration = 0.0
 
         # Periodic timer (10 Hz)
-        rate = self.get_parameter('publish_rate_hz').get_parameter_value().double_value
+        rate = self.get_parameter("publish_rate_hz").get_parameter_value().double_value
         self.timer = self.create_timer(1.0 / rate, self._timer_cb)
 
         self.get_logger().info("Failsafe Manager initialized. Nominal state active.")
@@ -265,13 +294,11 @@ class FailsafeNode(Node):
         self._lens_obscuration = msg.data
 
     def _timer_cb(self):
-        mode, v_max, purge_on, zeroized = self.fsm.update(
-            self._lens_obscuration, self._tamper_flag, dt=0.1
-        )
+        mode, v_max, purge_on, zeroized = self.fsm.update(self._lens_obscuration, self._tamper_flag, dt=0.1)
 
         msg = FailsafeState()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'base_link'
+        msg.header.frame_id = "base_link"
         msg.current_mode = mode
         msg.camera_lens_obscuration = float(self._lens_obscuration)
         msg.v_max_allowed = float(v_max)
@@ -296,5 +323,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

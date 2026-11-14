@@ -9,12 +9,12 @@ Reference: AUTOSAR SecOC Specification & MASTER_PROJECT_REPORT.md §1.4
   MAC = AES-128 CMAC (truncated to 64-bit) over [v || ω || FreshnessCounter]
 """
 
-import struct
 import hashlib
 import hmac
-import os
 import logging
-from typing import Tuple, Optional
+import os
+import struct
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -25,15 +25,13 @@ logger = logging.getLogger(__name__)
 # falls back to HMAC-SHA256 truncated for simulation environments.
 
 try:
-    from cryptography.hazmat.primitives.cmac import CMAC
     from cryptography.hazmat.primitives.ciphers.algorithms import AES
+    from cryptography.hazmat.primitives.cmac import CMAC
+
     _HAS_CRYPTO_LIB = True
 except ImportError:
     _HAS_CRYPTO_LIB = False
-    logger.warning(
-        "python3-cryptography not available. "
-        "Falling back to HMAC-SHA256 truncated for simulation."
-    )
+    logger.warning("python3-cryptography not available. " "Falling back to HMAC-SHA256 truncated for simulation.")
 
 
 class FreshnessCounter:
@@ -59,16 +57,14 @@ class FreshnessCounter:
     def increment(self) -> int:
         """Increment and return the new counter value."""
         if self._counter >= self.MAX_VALUE:
-            logger.critical(
-                "Freshness counter overflow! Key rotation required."
-            )
+            logger.critical("Freshness counter overflow! Key rotation required.")
             raise OverflowError("Freshness counter exhausted — rotate keys")
         self._counter += 1
         return self._counter
 
     def to_bytes(self) -> bytes:
         """Pack counter as 4-byte big-endian unsigned integer."""
-        return struct.pack('>I', self._counter)
+        return struct.pack(">I", self._counter)
 
 
 def load_secoc_key(key_path: Optional[str] = None) -> bytes:
@@ -89,7 +85,7 @@ def load_secoc_key(key_path: Optional[str] = None) -> bytes:
         16-byte AES-128 key.
     """
     if key_path and os.path.exists(key_path):
-        with open(key_path, 'rb') as f:
+        with open(key_path, "rb") as f:
             key = f.read(16)
         if len(key) != 16:
             raise ValueError(f"SecOC key file must be exactly 16 bytes, got {len(key)}")
@@ -98,10 +94,7 @@ def load_secoc_key(key_path: Optional[str] = None) -> bytes:
 
     # Deterministic simulation key (NOT for production use)
     test_key = hashlib.sha256(b"NETRA_UGV_SECOC_SIM_KEY_v1").digest()[:16]
-    logger.warning(
-        "Using deterministic SIMULATION SecOC key. "
-        "DO NOT deploy to production hardware."
-    )
+    logger.warning("Using deterministic SIMULATION SecOC key. " "DO NOT deploy to production hardware.")
     return test_key
 
 
@@ -157,7 +150,7 @@ def build_secoc_payload(
     counter_val = freshness.increment()
 
     # Pack the authenticated data region
-    auth_data = struct.pack('>ff', linear_vel, angular_vel) + freshness.to_bytes()
+    auth_data = struct.pack(">ff", linear_vel, angular_vel) + freshness.to_bytes()
 
     # Compute full 16-byte CMAC, then truncate to 8 bytes for CAN-FD
     full_mac = compute_aes128_cmac(key, auth_data)
@@ -196,13 +189,12 @@ def verify_secoc_payload(
     # Anti-replay check
     if counter_val <= last_valid_counter:
         logger.warning(
-            f"SecOC REPLAY ATTACK detected! "
-            f"Received counter {counter_val} <= last valid {last_valid_counter}"
+            f"SecOC REPLAY ATTACK detected! " f"Received counter {counter_val} <= last valid {last_valid_counter}"
         )
         return False
 
     # Recompute MAC
-    auth_data = struct.pack('>ff', linear_vel, angular_vel) + struct.pack('>I', counter_val)
+    auth_data = struct.pack(">ff", linear_vel, angular_vel) + struct.pack(">I", counter_val)
     full_mac = compute_aes128_cmac(key, auth_data)
     expected_mac = full_mac[:8]
 

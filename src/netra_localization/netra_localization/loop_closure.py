@@ -13,11 +13,12 @@ Reference: TECHNICAL_ARCHITECTURE.md §2
   POSIX Priority: 10 (SCHED_OTHER) — netra_loop thread
 """
 
-import numpy as np
-import cv2
-from typing import Optional, Tuple, List
 import logging
 import threading
+from typing import List, Optional, Tuple
+
+import cv2
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +138,7 @@ class LoopClosureDetector:
             # Limit database size
             if len(self.keyframes) > self.max_keyframes:
                 # Remove oldest keyframes (keep first and last 50)
-                self.keyframes = self.keyframes[:25] + self.keyframes[-self.max_keyframes + 25:]
+                self.keyframes = self.keyframes[:25] + self.keyframes[-self.max_keyframes + 25 :]
 
         return kf.frame_id
 
@@ -206,9 +207,7 @@ class LoopClosureDetector:
                 dtype=np.float32,
             )
 
-            F, mask = cv2.findFundamentalMat(
-                src_pts, dst_pts, cv2.FM_RANSAC, 2.0
-            )
+            F, mask = cv2.findFundamentalMat(src_pts, dst_pts, cv2.FM_RANSAC, 2.0)
 
             if mask is None:
                 continue
@@ -219,7 +218,8 @@ class LoopClosureDetector:
                 # Estimate relative pose (simplified using essential matrix)
                 E = F  # Approximation without K correction for speed
                 _, R_rel, t_rel, _ = cv2.recoverPose(
-                    E, src_pts[mask.flatten() == 1],
+                    E,
+                    src_pts[mask.flatten() == 1],
                     dst_pts[mask.flatten() == 1],
                 )
 
@@ -227,10 +227,7 @@ class LoopClosureDetector:
                 best_inliers = n_inliers
 
         if best_match is not None:
-            logger.info(
-                f"Loop closure detected! Matched KF #{best_match[0]} "
-                f"with {best_inliers} inliers."
-            )
+            logger.info(f"Loop closure detected! Matched KF #{best_match[0]} " f"with {best_inliers} inliers.")
 
         return best_match
 

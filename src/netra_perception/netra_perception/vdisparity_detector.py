@@ -23,10 +23,11 @@ Why RANSAC on 3D pointclouds is eliminated:
   - v-disparity operates on 2D histogram, guaranteeing < 0.6 ms
 """
 
-import numpy as np
-import cv2
-from typing import Tuple, Optional, List
 import logging
+from typing import List, Optional, Tuple
+
+import cv2
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -91,13 +92,11 @@ class VDisparityDetector:
             valid = row > 0  # exclude invalid/zero disparities
             if np.any(valid):
                 bins = np.bincount(row[valid], minlength=self.max_disparity)
-                vdisp[v, :len(bins)] = bins[:self.max_disparity]
+                vdisp[v, : len(bins)] = bins[: self.max_disparity]
 
         return vdisp
 
-    def extract_ground_plane(
-        self, vdisp: np.ndarray
-    ) -> Optional[Tuple[float, float]]:
+    def extract_ground_plane(self, vdisp: np.ndarray) -> Optional[Tuple[float, float]]:
         """
         Extract the dominant ground plane line from the v-disparity image.
 
@@ -206,15 +205,17 @@ class VDisparityDetector:
                     depth_m = (self.baseline * self.focal_length) / max(d_expected, 1)
                     drop_depth_m = 0.5  # Conservative estimate
 
-                    detections.append({
-                        'row_start': v,
-                        'row_end': min(v + 10, H),
-                        'col_start': col_start,
-                        'col_end': col_end,
-                        'confidence': min(1.0, width / (3.0 * self.void_min_width)),
-                        'depth_m': depth_m,
-                        'drop_depth_m': drop_depth_m,
-                    })
+                    detections.append(
+                        {
+                            "row_start": v,
+                            "row_end": min(v + 10, H),
+                            "col_start": col_start,
+                            "col_end": col_end,
+                            "confidence": min(1.0, width / (3.0 * self.void_min_width)),
+                            "depth_m": depth_m,
+                            "drop_depth_m": drop_depth_m,
+                        }
+                    )
 
             # Check for disparity deviation (measured disparity significantly
             # different from expected ground plane prediction)
@@ -229,15 +230,17 @@ class VDisparityDetector:
                     drop_depth_m = (deviation / self.focal_length) * depth_m
 
                     valid_cols = np.where(valid_mask)[0]
-                    detections.append({
-                        'row_start': v,
-                        'row_end': min(v + 5, H),
-                        'col_start': int(valid_cols[0]),
-                        'col_end': int(valid_cols[-1]),
-                        'confidence': min(1.0, deviation / (3.0 * self.epsilon_drop)),
-                        'depth_m': depth_m,
-                        'drop_depth_m': drop_depth_m,
-                    })
+                    detections.append(
+                        {
+                            "row_start": v,
+                            "row_end": min(v + 5, H),
+                            "col_start": int(valid_cols[0]),
+                            "col_end": int(valid_cols[-1]),
+                            "confidence": min(1.0, deviation / (3.0 * self.epsilon_drop)),
+                            "depth_m": depth_m,
+                            "drop_depth_m": drop_depth_m,
+                        }
+                    )
 
         # Merge overlapping detections
         detections = self._merge_detections(detections)
@@ -267,7 +270,7 @@ class VDisparityDetector:
             return detections
 
         # Sort by confidence descending
-        detections.sort(key=lambda d: d['confidence'], reverse=True)
+        detections.sort(key=lambda d: d["confidence"], reverse=True)
 
         merged = []
         used = set()
@@ -280,12 +283,10 @@ class VDisparityDetector:
                     continue
                 # Simple proximity check
                 row_overlap = (
-                    det['row_start'] <= detections[j]['row_end']
-                    and detections[j]['row_start'] <= det['row_end']
+                    det["row_start"] <= detections[j]["row_end"] and detections[j]["row_start"] <= det["row_end"]
                 )
                 col_overlap = (
-                    det['col_start'] <= detections[j]['col_end']
-                    and detections[j]['col_start'] <= det['col_end']
+                    det["col_start"] <= detections[j]["col_end"] and detections[j]["col_start"] <= det["col_end"]
                 )
                 if row_overlap and col_overlap:
                     used.add(j)
@@ -295,5 +296,5 @@ class VDisparityDetector:
     def disparity_to_depth(self, disparity: float) -> float:
         """Convert a disparity value to metric depth (meters)."""
         if disparity <= 0:
-            return float('inf')
+            return float("inf")
         return (self.baseline * self.focal_length) / disparity
