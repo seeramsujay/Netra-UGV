@@ -1,3 +1,20 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="Netra-UGV Logo" width="120" height="120" />
+</p>
+
+<h1 align="center">Netra-UGV</h1>
+
+<p align="center">
+  <em>Autonomous mobile robotics & UGV navigation stack with sim tests</em>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-Maintained-success?style=flat-square" alt="Status" />
+  <img src="https://img.shields.io/badge/License-Protected-blue?style=flat-square" alt="License" />
+</p>
+
+---
+
 # 🤖 NETRA-UGV: Vision-Based Autonomous Navigation for Outdoor Unmanned Ground Vehicles
 
 [![Smart India Hackathon 2026](https://img.shields.io/badge/SIH_2026-PS--26126-orange.svg)](https://www.sih.gov.in/)
